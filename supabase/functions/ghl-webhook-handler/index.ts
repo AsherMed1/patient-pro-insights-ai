@@ -3216,10 +3216,133 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
       console.warn(`[${requestId}] note carry-forward failed:`, carryErr)
     }
 
+    // Same-slot re-book (GHL re-issued the event id for the same date+time): the new
+    // row IS the old booking. Carry the portal-owned state forward so the clinic
+    // doesn't lose the Welcome Call state / procedure status they set.
+    try {
+      await carryForwardPortalState(supabase, toSupersede, newRow, requestId)
+    } catch (stateErr) {
+      console.warn(`[${requestId}] portal-state carry-forward failed:`, stateErr)
+    }
+
   } catch (e) {
     console.error(`[${requestId}] supersedeOlderContactRows threw:`, e)
   }
 }
+
+/**
+ * Copies portal-owned state (Welcome Call tracking, procedure status) from a
+ * superseded row onto the new booking when they represent the same slot, and
+ * re-points welcome-call attempt rows at the new appointment.
+ */
+async function carryForwardPortalState(supabase: any, superseded: any[], newRow: any, requestId: string) {
+  const newDate = newRow.date_of_appointment ? String(newRow.date_of_appointment) : null
+  const newTime = newRow.requested_time ? String(newRow.requested_time) : null
+  if (!newDate) return
+
+  const sameSlot = superseded.find((r) =>
+    String(r.date_of_appointment || '') === newDate &&
+    String(r.requested_time || '') === String(newTime || '')
+  )
+  if (!sameSlot) return
+
+  const patch: Record<string, any> = {}
+  const oldStatus = (sameSlot.status || '').trim().toLowerCase()
+  if (oldStatus === 'welcome call') patch.status = 'Welcome Call'
+  if (sameSlot.welcome_call_state && sameSlot.welcome_call_state !== 'none') {
+    patch.welcome_call_state = sameSlot.welcome_call_state
+    patch.welcome_call_attempt_count = sameSlot.welcome_call_attempt_count || 0
+    patch.welcome_call_first_attempt_at = sameSlot.welcome_call_first_attempt_at
+    patch.welcome_call_last_attempt_at = sameSlot.welcome_call_last_attempt_at
+    patch.welcome_call_reached_at = sameSlot.welcome_call_reached_at
+  }
+  if (sameSlot.procedure_status) patch.procedure_status = sameSlot.procedure_status
+
+  if (!Object.keys(patch).length) return
+
+  const { error } = await supabase.from('all_appointments').update(patch).eq('id', newRow.id)
+  if (error) {
+    console.warn(`[${requestId}] portal-state update failed:`, error)
+    return
+  }
+
+  // Move welcome-call attempt history onto the row the clinic can actually see.
+  await supabase
+    .from('appointment_contact_attempts')
+    .update({ appointment_id: newRow.id })
+    .eq('appointment_id', sameSlot.id)
+    .eq('source', 'welcome_call')
+
+  await supabase.from('appointment_notes').insert({
+    appointment_id: newRow.id,
+    note_text: `Carried forward from the previous booking for this same slot: ${Object.keys(patch).join(', ')} — System`,
+    created_by: 'System',
+    visibility: 'internal',
+  })
+}
+
+/**
+ * After a GHL cancellation auto-declines a row, make sure the contact still has at
+ * least one row visible in the client portal. If the declined row had superseded an
+ * active booking within the last hour (a GHL re-book that was then cancelled), the
+ * patient would otherwise vanish entirely — so we restore that sibling.
+ */
+async function ensureContactRemainsVisible(supabase: any, declinedId: string, requestId: string) {
+  const { data: row } = await supabase
+    .from('all_appointments')
+    .select('id, ghl_id, project_name')
+    .eq('id', declinedId)
+    .maybeSingle()
+
+  if (!row?.ghl_id || !row?.project_name) return
+
+  const { data: siblings } = await supabase
+    .from('all_appointments')
+    .select('id, review_status, is_superseded, updated_at, status')
+    .eq('ghl_id', row.ghl_id)
+    .eq('project_name', row.project_name)
+    .limit(50)
+
+  const all = (siblings as any[]) || []
+  const visible = all.filter((r) =>
+    !r.is_superseded && !['declined', 'dismissed'].includes((r.review_status || '').toLowerCase().trim())
+  )
+  if (visible.length > 0) return
+
+  const cutoff = Date.now() - 60 * 60 * 1000
+  const candidate = all
+    .filter((r) =>
+      r.id !== declinedId &&
+      r.is_superseded &&
+      !['declined', 'dismissed'].includes((r.review_status || '').toLowerCase().trim()) &&
+      r.updated_at && new Date(r.updated_at).getTime() >= cutoff
+    )
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]
+
+  if (!candidate) {
+    console.warn(`[${requestId}] contact ${row.ghl_id} has no visible row and no restorable sibling`)
+    return
+  }
+
+  const { error } = await supabase
+    .from('all_appointments')
+    .update({ is_superseded: false })
+    .eq('id', candidate.id)
+
+  if (error) {
+    console.warn(`[${requestId}] visibility restore failed:`, error)
+    return
+  }
+
+  await supabase.from('appointment_notes').insert({
+    appointment_id: candidate.id,
+    note_text: 'Restored to the portal — the newer GoHighLevel booking that superseded this record was cancelled, which would have left this patient with no visible appointment. — System',
+    created_by: 'System',
+    visibility: 'internal',
+  })
+  console.log(`[${requestId}] ♻️ Restored superseded row ${candidate.id} to keep contact visible`)
+}
+
 
 // Marker prefix used to identify (and never re-copy) carried-over notes.
 const CARRIED_NOTE_MARKER = '[from '
