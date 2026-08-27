@@ -55,6 +55,10 @@ import { uploadImages, type StoredAttachment } from '@/lib/attachments';
 const STICKY_HEAD_STYLE: React.CSSProperties = { top: 0 };
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
+/** Buckets in the queue header. `qa_hold` is a virtual bucket driven by the
+ * Potential OON safeguard rather than by workflow_status. */
+type QueueTab = WorkflowStatus | 'all' | 'qa_hold';
+
 type AlertType = 'short_notice' | 'oon' | 'potential_oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
 
 const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'potential_oon', 'confirmed_audit', 'review_queue'];
@@ -111,6 +115,11 @@ interface QACase {
   lead_phone_number?: string | null;
   lead_email?: string | null;
   attachments?: any[] | null;
+  /** Potential OON safeguard state, mirrored from all_appointments. */
+  potential_oon?: boolean | null;
+  potential_oon_matches?: any;
+  potential_oon_resolved_at?: string | null;
+  potential_oon_resolution?: string | null;
 }
 
 interface QANote {
@@ -147,14 +156,23 @@ const activityActorLabel = (a: QAActivity, names: Map<string, string>): string |
   return 'System';
 };
 
-const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
+const STATUS_TABS: { value: QueueTab; label: string }[] = [
   { value: 'new', label: 'New' },
+  { value: 'qa_hold', label: 'QA Hold' },
   { value: 'in_review', label: 'Opened' },
   { value: 'pending_escalated', label: 'Pending / Escalated' },
   
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
+
+/**
+ * A record sits in QA Hold while the Potential OON safeguard is unresolved.
+ * Resolving it (in network / confirmed OON) drops the record out of the bucket
+ * but never completes the audit — the specialist closes the case manually.
+ */
+const isQaHold = (c: { potential_oon?: boolean | null; potential_oon_resolved_at?: string | null }) =>
+  !!c.potential_oon && !c.potential_oon_resolved_at;
 
 const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   new: 'New',
@@ -408,7 +426,7 @@ export default function QAOperationsQueue() {
     })();
   }, [user?.id, user?.email]);
 
-  const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
+  const [tab, setTab] = useState<QueueTab>('new');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -523,18 +541,22 @@ export default function QAOperationsQueue() {
       const apptIds = Array.from(
         new Set(rows.map((r) => r.appointment_id).filter((v): v is string => !!v)),
       );
-      const contactMap = new Map<string, { phone: string | null; email: string | null; status: string | null }>();
+      const contactMap = new Map<string, any>();
       for (let i = 0; i < apptIds.length; i += 500) {
         const chunk = apptIds.slice(i, i + 500);
         const { data: appts } = await supabase
           .from('all_appointments')
-          .select('id, lead_phone_number, lead_email, status')
+          .select('id, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
           .in('id', chunk);
         for (const a of (appts as any[]) || []) {
           contactMap.set(a.id, {
             phone: a.lead_phone_number ?? null,
             email: a.lead_email ?? null,
             status: a.status ?? null,
+            potential_oon: a.potential_oon ?? null,
+            potential_oon_matches: a.potential_oon_matches ?? null,
+            potential_oon_resolved_at: a.potential_oon_resolved_at ?? null,
+            potential_oon_resolution: a.potential_oon_resolution ?? null,
           });
         }
       }
@@ -544,6 +566,10 @@ export default function QAOperationsQueue() {
         r.lead_email = c?.email ?? null;
         // Mirror the live Portal status so the queue never shows a stale snapshot.
         if (c && c.status) r.appointment_status = c.status;
+        r.potential_oon = c?.potential_oon ?? null;
+        r.potential_oon_matches = c?.potential_oon_matches ?? null;
+        r.potential_oon_resolved_at = c?.potential_oon_resolved_at ?? null;
+        r.potential_oon_resolution = c?.potential_oon_resolution ?? null;
       }
       setCases(rows);
       hasLoadedRef.current = true;
@@ -590,7 +616,7 @@ export default function QAOperationsQueue() {
       if (!row?.appointment_id) return row;
       const { data } = await supabase
         .from('all_appointments')
-        .select('lead_phone_number, lead_email, status')
+        .select('lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
         .eq('id', row.appointment_id)
         .maybeSingle();
       return {
@@ -598,6 +624,10 @@ export default function QAOperationsQueue() {
         lead_phone_number: (data as any)?.lead_phone_number ?? null,
         lead_email: (data as any)?.lead_email ?? null,
         appointment_status: (data as any)?.status ?? row.appointment_status ?? null,
+        potential_oon: (data as any)?.potential_oon ?? null,
+        potential_oon_matches: (data as any)?.potential_oon_matches ?? null,
+        potential_oon_resolved_at: (data as any)?.potential_oon_resolved_at ?? null,
+        potential_oon_resolution: (data as any)?.potential_oon_resolution ?? null,
       };
     };
 
@@ -793,18 +823,21 @@ export default function QAOperationsQueue() {
 
 
   const bucketCounts = useMemo(() => {
-    const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
+    const counts: Record<string, number> = { new: 0, qa_hold: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
     for (const g of groupedNoStatus) {
       const s = g.primary.workflow_status;
       if (counts[s] !== undefined) counts[s]++;
+      if (isQaHold(g.primary)) counts.qa_hold++;
       counts.all++;
     }
     return counts;
   }, [groupedNoStatus]);
 
-  const statusFilteredGroups = useMemo(() => (
-    tab === 'all' ? groupedNoStatus : groupedNoStatus.filter((g) => g.primary.workflow_status === tab)
-  ), [groupedNoStatus, tab]);
+  const statusFilteredGroups = useMemo(() => {
+    if (tab === 'all') return groupedNoStatus;
+    if (tab === 'qa_hold') return groupedNoStatus.filter((g) => isQaHold(g.primary));
+    return groupedNoStatus.filter((g) => g.primary.workflow_status === tab);
+  }, [groupedNoStatus, tab]);
 
   // --- Column sorting -------------------------------------------------------
   const sortValue = (g: QAGroup, key: SortKey): string | number => {
@@ -896,7 +929,7 @@ export default function QAOperationsQueue() {
     if (filterSigRef.current === filterSig) return;
     filterSigRef.current = filterSig;
     if (!hasActiveFilter) return;
-    if (tab === 'all') return;
+    if (tab === 'all' || tab === 'qa_hold') return;
     if (bucketCounts[tab] > 0) return;
     const order: WorkflowStatus[] = ['new', 'in_review', 'pending_escalated', 'completed'];
     const next = order.find((s) => bucketCounts[s] > 0);
