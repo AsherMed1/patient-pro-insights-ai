@@ -180,7 +180,7 @@ export const ShortNoticeRules: React.FC<Props> = ({ projectName, defaultHours })
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
         {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading…</div>}
         {!loading && rules.length === 0 && (
           <p className="text-sm text-muted-foreground">No rules yet — every appointment uses the default.</p>

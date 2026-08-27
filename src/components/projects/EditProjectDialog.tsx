@@ -117,8 +117,8 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="sticky top-0 z-10 bg-background -mx-6 px-6 pb-3 border-b">
           <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>
             Update the project information.
