@@ -328,6 +328,40 @@ export default function RecaptureCaseDrawer({
         .eq('id', row.id);
       if (caseError) throw caseError;
 
+      // Append-only activity trail: one row per action, never overwritten.
+      void logRecaptureActivity({
+        caseId: row.id,
+        activityType: 'attempt',
+        description:
+          `${CHANNEL_LABELS[payload.channel]} — ${RESULT_LABELS[payload.result]}` +
+          (payload.note ? ` · ${payload.note}` : ''),
+        channel: payload.channel,
+        result: payload.result,
+        conversationOutcome: payload.conversationOutcome,
+        actorUserId: user?.id || null,
+        actorName: actor,
+      });
+      if (followUp) {
+        void logRecaptureActivity({
+          caseId: row.id,
+          activityType: 'follow_up_scheduled',
+          description: statusLabel || 'Follow-up scheduled',
+          actorUserId: user?.id || null,
+          actorName: actor,
+        });
+      }
+      if (update.work_status === 'completed') {
+        void logRecaptureActivity({
+          caseId: row.id,
+          activityType: 'completed',
+          description: statusLabel || 'Completed',
+          conversationOutcome: payload.conversationOutcome,
+          actorUserId: user?.id || null,
+          actorName: actor,
+        });
+      }
+
+
       if (update.work_status === 'completed' &&
         (payload.result === 'wrong_number' || payload.conversationOutcome === 'not_interested')) {
         await blockFutureOutreach(
