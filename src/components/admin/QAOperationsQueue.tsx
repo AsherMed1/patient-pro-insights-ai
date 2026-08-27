@@ -126,6 +126,11 @@ interface QACase {
   potential_oon_matches?: any;
   potential_oon_resolved_at?: string | null;
   potential_oon_resolution?: string | null;
+  /** Live appointment state used to decide whether a hold is still actionable. */
+  appointment_review_status?: string | null;
+  appointment_is_superseded?: boolean | null;
+  appointment_date?: string | null;
+
 }
 
 interface QANote {
