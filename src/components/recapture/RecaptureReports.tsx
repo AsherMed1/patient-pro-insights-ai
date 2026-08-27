@@ -29,6 +29,7 @@ export default function RecaptureReports() {
   const { isAdmin, hasManagementAccess, isReviewOnly, isRecaptureRole, accessibleProjects } = useRole();
   const [allCases, setAllCases] = useState<RecaptureCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'overview' | 'activity'>('overview');
   const [users, setUsers] = useState<UserMap>({});
   const fetchedRef = useRef(false);
 
