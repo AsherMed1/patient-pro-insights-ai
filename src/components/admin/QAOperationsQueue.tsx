@@ -129,7 +129,7 @@ interface QACase {
   /** Live appointment state used to decide whether a hold is still actionable. */
   appointment_review_status?: string | null;
   appointment_is_superseded?: boolean | null;
-  appointment_date?: string | null;
+
 
 }
 
