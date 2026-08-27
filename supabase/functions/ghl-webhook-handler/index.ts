@@ -3290,7 +3290,7 @@ async function carryForwardPortalState(supabase: any, superseded: any[], newRow:
 async function ensureContactRemainsVisible(supabase: any, declinedId: string, requestId: string) {
   const { data: row } = await supabase
     .from('all_appointments')
-    .select('id, ghl_id, project_name')
+    .select('id, ghl_id, project_name, status, review_status, is_superseded')
     .eq('id', declinedId)
     .maybeSingle()
 
@@ -3309,25 +3309,13 @@ async function ensureContactRemainsVisible(supabase: any, declinedId: string, re
   )
   if (visible.length > 0) return
 
-  const cutoff = Date.now() - 60 * 60 * 1000
-  const candidate = all
-    .filter((r) =>
-      r.id !== declinedId &&
-      r.is_superseded &&
-      !['declined', 'dismissed'].includes((r.review_status || '').toLowerCase().trim()) &&
-      r.updated_at && new Date(r.updated_at).getTime() >= cutoff
-    )
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]
-
-  if (!candidate) {
-    console.warn(`[${requestId}] contact ${row.ghl_id} has no visible row and no restorable sibling`)
-    return
-  }
-
+  // Nothing visible for this contact. Keep the cancelled row itself in the portal
+  // with an honest Cancelled status rather than resurrecting a superseded sibling
+  // that no longer exists in GoHighLevel.
   const { error } = await supabase
     .from('all_appointments')
-    .update({ is_superseded: false })
-    .eq('id', candidate.id)
+    .update({ status: 'Cancelled', review_status: 'approved', is_superseded: false })
+    .eq('id', declinedId)
 
   if (error) {
     console.warn(`[${requestId}] visibility restore failed:`, error)
@@ -3335,13 +3323,14 @@ async function ensureContactRemainsVisible(supabase: any, declinedId: string, re
   }
 
   await supabase.from('appointment_notes').insert({
-    appointment_id: candidate.id,
-    note_text: 'Restored to the portal — the newer GoHighLevel booking that superseded this record was cancelled, which would have left this patient with no visible appointment. — System',
+    appointment_id: declinedId,
+    note_text: 'Kept visible in the portal as Cancelled — GoHighLevel cancelled this booking, and hiding it would have left this patient with no visible appointment. — System',
     created_by: 'System',
     visibility: 'internal',
   })
-  console.log(`[${requestId}] ♻️ Restored superseded row ${candidate.id} to keep contact visible`)
+  console.log(`[${requestId}] ♻️ Kept cancelled row ${declinedId} visible to preserve contact visibility`)
 }
+
 
 
 // Marker prefix used to identify (and never re-copy) carried-over notes.
