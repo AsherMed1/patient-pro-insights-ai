@@ -8,6 +8,28 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Setter intake forms submit a template checklist where unanswered items are the
+// literal placeholder "Not Collected". Storing/showing those is noise that also
+// contradicts the real parsed answers, so drop placeholder segments entirely.
+function stripNotCollectedSegments(notes: string | null | undefined): string | null {
+  if (!notes) return notes ?? null;
+  const PLACEHOLDER = /^(?:not\s*collected|none\s*collected|not\s*provided|n\/?a|none|unknown|--?)\.?$/i;
+  const kept = String(notes)
+    .split(/\s*;\s*|\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((seg) => {
+      const idx = seg.indexOf(':');
+      if (idx === -1) return !PLACEHOLDER.test(seg.replace(/\.$/, '').trim());
+      const value = seg.slice(idx + 1).trim().replace(/\.$/, '').trim();
+      if (!value) return false;
+      return !PLACEHOLDER.test(value);
+    });
+  const out = kept.join('; ').trim();
+  return out.length > 0 ? out : null;
+}
+
+
 // Remove restated secondary-insurance details from the free-text Notes value.
 // The plan / ID / group already live in dedicated secondary_* fields, so echoing
 // them into Notes is pure duplication. Only removes confirmed duplicates.
