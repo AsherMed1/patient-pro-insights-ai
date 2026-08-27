@@ -17,6 +17,12 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
+import {
+  approveAppointmentFromQA,
+  markAppointmentOonFromQA,
+  resolvePotentialOonFlag,
+  describeOonMatches,
+} from '@/lib/reviewActions';
 import { useMentionableUsers, GROUP_PREFIX } from '@/hooks/useMentionableUsers';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -1936,7 +1942,18 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
-  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null; phone: string | null; email: string | null; status: string | null } | null>(null);
+  const [liveAppt, setLiveAppt] = useState<{
+    date: string | null;
+    time: string | null;
+    phone: string | null;
+    email: string | null;
+    status: string | null;
+    potential_oon: boolean | null;
+    potential_oon_matches: any;
+    potential_oon_resolved_at: string | null;
+    potential_oon_resolution: string | null;
+  } | null>(null);
+  const [resolvingOon, setResolvingOon] = useState(false);
   const [apptTz, setApptTz] = useState<string>(
     () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
   );
@@ -1959,7 +1976,7 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -1972,6 +1989,10 @@ function CaseDrawer({
                   phone: (data as any).lead_phone_number ?? null,
                   email: (data as any).lead_email ?? null,
                   status: (data as any).status ?? null,
+                  potential_oon: (data as any).potential_oon ?? null,
+                  potential_oon_matches: (data as any).potential_oon_matches ?? null,
+                  potential_oon_resolved_at: (data as any).potential_oon_resolved_at ?? null,
+                  potential_oon_resolution: (data as any).potential_oon_resolution ?? null,
                 }
               : null,
           );
@@ -1995,6 +2016,67 @@ function CaseDrawer({
 
   // Live Portal status wins over the frozen qa_cases snapshot.
   const liveApptStatus = (): string => liveAppt?.status || caseData?.appointment_status || '—';
+
+  // --- Potential OON (QA Hold) --------------------------------------------
+  // Resolving the hold applies the same GHL side effects as the Review Queue,
+  // but never completes the audit — the case stays open until the specialist
+  // clicks Complete.
+  const handleResolveOon = async (resolution: 'in_network' | 'out_of_network') => {
+    if (!caseData?.appointment_id) return;
+    setResolvingOon(true);
+    try {
+      const apptId = caseData.appointment_id;
+      await resolvePotentialOonFlag(apptId, resolution, actorName, user?.id ?? null);
+
+      const warnings =
+        resolution === 'in_network'
+          ? await approveAppointmentFromQA(apptId, actorName, user?.id ?? null)
+          : await markAppointmentOonFromQA(apptId, actorName, user?.id ?? null);
+
+      await supabase.from('qa_case_activity' as any).insert({
+        case_id: caseData.id,
+        activity_type: 'potential_oon_resolved',
+        description:
+          resolution === 'in_network'
+            ? 'Verified in network — appointment approved from QA Operations'
+            : 'Confirmed out of network — appointment marked OON from QA Operations',
+        actor_user_id: user?.id ?? null,
+        actor_name: actorName || null,
+      } as any);
+
+      warnings.forEach((w) =>
+        toast({ title: w.title, description: w.description, variant: w.severe ? 'destructive' : undefined }),
+      );
+      toast({
+        title: resolution === 'in_network' ? 'Verified in network' : 'Marked out of network',
+        description: 'The record stays open — add your audit and notes, then Complete when finished.',
+      });
+
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+        .eq('id', apptId)
+        .maybeSingle();
+      if (data) {
+        setLiveAppt({
+          date: (data as any).date_of_appointment,
+          time: (data as any).requested_time,
+          phone: (data as any).lead_phone_number ?? null,
+          email: (data as any).lead_email ?? null,
+          status: (data as any).status ?? null,
+          potential_oon: (data as any).potential_oon ?? null,
+          potential_oon_matches: (data as any).potential_oon_matches ?? null,
+          potential_oon_resolved_at: (data as any).potential_oon_resolved_at ?? null,
+          potential_oon_resolution: (data as any).potential_oon_resolution ?? null,
+        });
+      }
+      onRefresh();
+    } catch (e: any) {
+      toast({ title: 'Could not save', description: e?.message, variant: 'destructive' });
+    } finally {
+      setResolvingOon(false);
+    }
+  };
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
@@ -2701,6 +2783,64 @@ function CaseDrawer({
                 );
               })()}
             </SheetHeader>
+
+            {(() => {
+              const held = !!liveAppt?.potential_oon && !liveAppt?.potential_oon_resolved_at;
+              const resolved = !!liveAppt?.potential_oon && !!liveAppt?.potential_oon_resolved_at;
+              if (!held && !resolved) return null;
+              const reasons = describeOonMatches(liveAppt?.potential_oon_matches);
+              return (
+                <div
+                  className={cn(
+                    'mt-3 rounded-lg border p-3 space-y-2',
+                    held
+                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40'
+                      : 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40',
+                  )}
+                >
+                  <div className="text-xs font-semibold">
+                    {held
+                      ? 'QA Hold — potential out-of-network insurance'
+                      : `Potential OON resolved — ${
+                          liveAppt?.potential_oon_resolution === 'in_network'
+                            ? 'verified in network (approved)'
+                            : 'confirmed out of network'
+                        }`}
+                  </div>
+                  {reasons.map((r, i) => (
+                    <div key={i} className="text-[11px] text-muted-foreground break-words">
+                      {r}
+                    </div>
+                  ))}
+                  {held && (
+                    <>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={resolvingOon}
+                          onClick={() => handleResolveOon('in_network')}
+                        >
+                          Verified in network
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={resolvingOon}
+                          onClick={() => handleResolveOon('out_of_network')}
+                        >
+                          Confirm OON
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Either outcome keeps this record open in QA Operations so you can finish the audit,
+                        add notes, escalate or open a ticket. Use Complete when you're done.
+                      </p>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {siblings.length > 0 && (() => {
               const pinnedShortNotice =
