@@ -173,12 +173,42 @@ const STATUS_TABS: { value: QueueTab; label: string }[] = [
 ];
 
 /**
- * A record sits in QA Hold while the Potential OON safeguard is unresolved.
- * Resolving it (in network / confirmed OON) drops the record out of the bucket
+ * Statuses that mean the appointment is finished — nothing left to verify.
+ */
+const TERMINAL_APPT_STATUSES = new Set([
+  'cancelled', 'canceled', 'no show', 'showed', 'won', 'oon', 'do not call', 'rescheduled',
+]);
+
+/**
+ * A record sits in QA Hold while the Potential OON safeguard is unresolved AND the
+ * appointment is still workable. Records that already ended elsewhere (cancelled,
+ * marked OON, declined/dismissed in Review Queue, superseded, or whose appointment
+ * date has passed) never belong in the bucket even if the flag was never stamped.
+ * Resolving a hold (in network / confirmed OON) drops the record out of the bucket
  * but never completes the audit — the specialist closes the case manually.
  */
-const isQaHold = (c: { potential_oon?: boolean | null; potential_oon_resolved_at?: string | null }) =>
-  !!c.potential_oon && !c.potential_oon_resolved_at;
+const isQaHold = (c: {
+  potential_oon?: boolean | null;
+  potential_oon_resolved_at?: string | null;
+  appointment_status?: string | null;
+  appointment_review_status?: string | null;
+  appointment_is_superseded?: boolean | null;
+  appointment_date?: string | null;
+}) => {
+  if (!c.potential_oon || c.potential_oon_resolved_at) return false;
+  if (c.appointment_is_superseded) return false;
+  const status = (c.appointment_status || '').trim().toLowerCase();
+  if (TERMINAL_APPT_STATUSES.has(status)) return false;
+  const review = (c.appointment_review_status || '').trim().toLowerCase();
+  if (['oon', 'declined', 'dismissed'].includes(review)) return false;
+  if (c.appointment_date) {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (c.appointment_date < todayStr) return false;
+  }
+  return true;
+};
+
 
 const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   new: 'New',
