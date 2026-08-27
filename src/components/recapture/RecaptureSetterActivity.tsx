@@ -138,7 +138,7 @@ export default function RecaptureSetterActivity() {
       for (let page = 0; page < 60; page++) {
         const { data, error } = await supabase
           .from('recapture_case_activity' as any)
-          .select('*')
+          .select('id, case_id, activity_type, description, channel, result, conversation_outcome, actor_user_id, actor_name, created_at')
           .gte('created_at', from.toISOString())
           .lte('created_at', to.toISOString())
           .order('created_at', { ascending: false })
@@ -149,19 +149,38 @@ export default function RecaptureSetterActivity() {
         if (batch.length < PAGE) break;
       }
 
+      // Show the activity-driven views immediately; enrichment follows.
+      setActivities(acts);
+      setLoading(false);
+
       const caseIds = Array.from(new Set(acts.map((a) => a.case_id).filter(Boolean)));
-      const caseMap: Record<string, RecaptureCase> = {};
-      for (let i = 0; i < caseIds.length; i += 200) {
-        const chunk = caseIds.slice(i, i + 200);
-        const { data } = await supabase.from('recapture_cases' as any).select('*').in('id', chunk);
-        for (const c of ((data as any[]) || []) as RecaptureCase[]) caseMap[c.id] = c;
+      const actorIds = Array.from(new Set(acts.map((a) => a.actor_user_id).filter(Boolean))) as string[];
+
+      const caseChunks: Promise<any>[] = [];
+      for (let i = 0; i < caseIds.length; i += 300) {
+        const chunk = caseIds.slice(i, i + 300);
+        caseChunks.push(Promise.resolve(supabase.from('recapture_cases' as any).select('*').in('id', chunk)) as Promise<any>);
       }
 
-      const { data: profiles } = await supabase.from('profiles').select('id, full_name, email');
-      const pm: Record<string, string> = {};
-      for (const p of ((profiles as any[]) || [])) pm[p.id] = p.full_name || p.email || p.id.slice(0, 8);
+      const profileQuery: Promise<any> = actorIds.length
+        ? (supabase.from('profiles').select('id, full_name, email').in('id', actorIds) as unknown as Promise<any>)
+        : Promise.resolve({ data: [] as any[] });
 
-      setActivities(acts);
+      const [caseResults, profileResult] = await Promise.all([
+        Promise.all(caseChunks),
+        profileQuery,
+      ]);
+
+      const caseMap: Record<string, RecaptureCase> = {};
+      for (const res of caseResults) {
+        for (const c of ((res?.data as any[]) || []) as RecaptureCase[]) caseMap[c.id] = c;
+      }
+
+      const pm: Record<string, string> = {};
+      for (const p of (((profileResult as any)?.data as any[]) || [])) {
+        pm[p.id] = p.full_name || p.email || p.id.slice(0, 8);
+      }
+
       setCases(caseMap);
       setPeople(pm);
     } catch (e: any) {
@@ -176,6 +195,7 @@ export default function RecaptureSetterActivity() {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo]);
+
 
   const minFrom = parseHHMM(timeFrom, 0);
   const minTo = parseHHMM(timeTo, 1439);
