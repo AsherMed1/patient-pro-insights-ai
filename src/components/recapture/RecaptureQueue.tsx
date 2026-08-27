@@ -22,6 +22,7 @@ import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
 
 import RecaptureCaseDrawer from './RecaptureCaseDrawer';
+import { logRecaptureActivity } from './activityLog';
 import {
   WORK_STATUS_LABELS,
   followUpCountdown,
