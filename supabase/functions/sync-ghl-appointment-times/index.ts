@@ -81,6 +81,26 @@ Deno.serve(async (req) => {
       });
     }
 
+    // A clinic-initiated reschedule that GoHighLevel has NOT accepted yet is not "drift":
+    // the portal is the source of truth until the outbound push succeeds. Load any
+    // unprocessed reschedule request so those rows are retried instead of overwritten.
+    const pendingPush = new Map<string, any>();
+    if (rows.length) {
+      const { data: resched } = await supabase
+        .from('appointment_reschedules')
+        .select('id, appointment_id, new_date, new_time, ghl_sync_status, created_at')
+        .in('appointment_id', rows.map((r) => r.id))
+        .eq('processed', false)
+        .in('ghl_sync_status', ['pending', 'failed'])
+        .order('created_at', { ascending: false });
+      for (const r of resched || []) {
+        if (!pendingPush.has(r.appointment_id)) pendingPush.set(r.appointment_id, r);
+      }
+    }
+
+    // Give up retrying (and escalate instead) once a push has been failing this long.
+    const RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
     const projectCache = new Map<string, { apiKey: string | null; timezone: string }>();
     async function getProject(name: string) {
       if (projectCache.has(name)) return projectCache.get(name)!;
