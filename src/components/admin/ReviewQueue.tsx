@@ -2093,7 +2093,9 @@ const ReviewQueue: React.FC = () => {
   const isDeclinedView = queueView === 'declined';
   const isApprovedView = queueView === 'approved';
   const isOonView = queueView === 'oon';
-  const isReadOnlyView = isDeclinedView || isApprovedView || isOonView;
+  // QA Hold is view-only here: Potential OON verification now happens in QA Operations.
+  const isQaHoldView = queueView === 'qa_hold';
+  const isReadOnlyView = isDeclinedView || isApprovedView || isOonView || isQaHoldView;
   const isNewView = queueView === 'new';
   const isTraineeView = queueView === 'trainee';
   const traineeReadOnly = isTraineeView && !canActOnTrainees;
@@ -2540,38 +2542,46 @@ const ReviewQueue: React.FC = () => {
 
                       </div>
 
-                      {!isReadOnlyView && isOonBlocked(row) && (
+                      {(!isReadOnlyView || isQaHoldView) && isOonBlocked(row) && (
                         <div className="mt-2 rounded-md border border-amber-400 bg-amber-50 p-2 space-y-1 min-w-0">
                           <div className="text-[11px] font-medium text-amber-900 break-words">
                             Potential out-of-network insurance — approval blocked
                           </div>
                           {(Array.isArray(row.potential_oon_matches) ? row.potential_oon_matches : []).map((m: any, i: number) => (
                             <div key={i} className="text-[11px] text-amber-800 break-words">
-                              {m.matched_on === 'group' ? 'Group #' : 'Plan'} “{m.matched_value}”
+                              {m.matched_on === 'group' ? 'Group #' : m.matched_on === 'id' ? 'Insurance ID' : 'Plan'} “{m.matched_value}”
                               {m.plan_name ? ` → ${m.plan_name}` : ''}{m.note ? ` — ${m.note}` : ''}
                             </div>
                           ))}
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            <Button size="sm" variant="outline" disabled={processing}
-                              className="h-7 px-2 text-[11px] min-w-0"
-                              onClick={() => resolvePotentialOon(row, 'in_network')}>
-                              Verified in network
-                            </Button>
-                            <Button size="sm" variant="destructive" disabled={processing}
-                              className="h-7 px-2 text-[11px] min-w-0"
-                              onClick={() => resolvePotentialOon(row, 'out_of_network')}>
-                              Confirm OON
-                            </Button>
-                          </div>
+                          {isQaHoldView ? (
+                            <div className="text-[11px] text-amber-800 pt-1">
+                              View only — verify this record in <span className="font-medium">QA Operations → QA Hold</span>,
+                              where the audit, notes, escalation and ticket stay on the same record.
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              <Button size="sm" variant="outline" disabled={processing}
+                                className="h-7 px-2 text-[11px] min-w-0"
+                                onClick={() => resolvePotentialOon(row, 'in_network')}>
+                                Verified in network
+                              </Button>
+                              <Button size="sm" variant="destructive" disabled={processing}
+                                className="h-7 px-2 text-[11px] min-w-0"
+                                onClick={() => resolvePotentialOon(row, 'out_of_network')}>
+                                Confirm OON
+                              </Button>
+                            </div>
+                          )}
 
                         </div>
                       )}
 
-                      {isReadOnlyView && (
+                      {isReadOnlyView && !isQaHoldView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
                           {isOonView ? 'Marked OON' : isApprovedView ? 'Approved' : isAutoDeclined ? 'Auto-declined' : 'Declined'} {row.reviewed_at ? `${formatDate(row.reviewed_at)} ${new Date(row.reviewed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '—'} by {reviewerLabel}
                         </div>
                       )}
+
                     </div>
                     <div className="text-xs min-w-0 break-words">{row.project_name}</div>
                     <div className="text-xs">
