@@ -318,6 +318,8 @@ const AppointmentCard = ({
       return `${baseClass} bg-emerald-50 border-emerald-200 hover:bg-emerald-100`;
     } else if (procedureStatus === 'no_procedure') {
       return `${baseClass} bg-gray-50 border-gray-200 hover:bg-gray-100`;
+    } else if (procedureStatus === 'not_a_candidate') {
+      return `${baseClass} bg-slate-100 border-slate-300 hover:bg-slate-200`;
     } else {
       return `${baseClass} bg-yellow-50 border-yellow-200 hover:bg-yellow-100`;
     }
@@ -2128,6 +2130,7 @@ const AppointmentCard = ({
                 <SelectItem value="procedure_complete">Procedure Complete</SelectItem>
                 <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                 <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+                <SelectItem value="not_a_candidate">Not a Candidate</SelectItem>
               </SelectContent>
             </Select>
           </div>

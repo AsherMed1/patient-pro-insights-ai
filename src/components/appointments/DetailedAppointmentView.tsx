@@ -1297,6 +1297,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     <SelectItem value="procedure_complete">Procedure Complete</SelectItem>
                     <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                     <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+                    <SelectItem value="not_a_candidate">Not a Candidate</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
