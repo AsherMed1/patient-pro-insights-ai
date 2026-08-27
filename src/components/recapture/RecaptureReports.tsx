@@ -112,16 +112,48 @@ export default function RecaptureReports() {
     return { total, completed, recovered, pending, engaging, followUp, totalAttempts, avgAttempts, byProject, bySetter, byDay };
   }, [cases]);
 
+  const ViewToggle = () => (
+    <div className="flex gap-2">
+      <Button
+        variant={view === 'overview' ? 'default' : 'outline'}
+        size="sm"
+        onClick={() => setView('overview')}
+      >
+        Overview
+      </Button>
+      <Button
+        variant={view === 'activity' ? 'default' : 'outline'}
+        size="sm"
+        onClick={() => setView('activity')}
+      >
+        Setter Activity
+      </Button>
+    </div>
+  );
+
+  if (view === 'activity') {
+    return (
+      <div className="space-y-4">
+        <ViewToggle />
+        <RecaptureSetterActivity />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-4">
+        <ViewToggle />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <ViewToggle />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Cases</CardTitle></CardHeader>
