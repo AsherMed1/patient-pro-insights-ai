@@ -179,11 +179,14 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
           </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <WelcomeCallAttemptControl
-            appointmentId={appointmentId}
-            patientName={leadName}
-            showEmptyState={!isClinicUser}
-          />
+          <span data-tour="welcome-call-attempt" className="flex items-center gap-2 flex-wrap justify-end">
+            <WelcomeCallAttemptControl
+              appointmentId={appointmentId}
+              patientName={leadName}
+              showEmptyState={!isClinicUser}
+            />
+          </span>
+
           {!showAddForm && (
             <Button
               variant="outline"
