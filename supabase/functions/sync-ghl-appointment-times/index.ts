@@ -30,6 +30,7 @@ type Row = {
   ghl_appointment_id: string | null;
   is_unscheduled: boolean | null;
   last_ghl_sync_status: string | null;
+  last_ghl_sync_at: string | null;
 };
 
 const normTime = (v: unknown) => {
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body?.limit) || 200, 500);
 
     const cols =
-      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled, last_ghl_sync_status';
+      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled, last_ghl_sync_status, last_ghl_sync_at';
 
     let rows: Row[] = [];
     if (appointmentIds.length) {
