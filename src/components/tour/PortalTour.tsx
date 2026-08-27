@@ -321,7 +321,17 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
                 step changes while the card itself glides to its new spot. */}
             <div key={index} className="animate-fade-in">
               <h3 className="mt-1 text-base font-semibold text-foreground">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{step.body}</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+              {step.bullets && (
+                <ul className="mt-2 space-y-1">
+                  {step.bullets.map((b, i) => (
+                    <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted-foreground">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7 -mr-1 -mt-1" onClick={finish} aria-label="Close tour">

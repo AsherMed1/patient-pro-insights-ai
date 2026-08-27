@@ -14,6 +14,8 @@ export interface PortalTourStep {
   anchors?: string[];
   title: string;
   body: string;
+  /** Optional bullet list rendered under the intro body. */
+  bullets?: string[];
   /** Portal section that must be active before this step is shown. */
   section?: PortalTourSection;
   /** Preferred placement of the explanation card relative to the anchor. */
@@ -86,7 +88,11 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
     section: 'appointments-list',
     placement: 'bottom',
     title: 'Logging a Welcome Call',
-    body: 'Select Welcome Call Attempt in the notes header. Choose Patient Answered or Patient Did Not Answer, add the required internal note, and save.\n\n- Patient Answered: Marks the patient as successfully reached.\n- Patient Did Not Answer: Keeps the record open and sends the patient follow-up text, limited to once every 12 hours.',
+    body: 'Select Welcome Call Attempt in the notes header. Choose Patient Answered or Patient Did Not Answer, add the required internal note, and save.',
+    bullets: [
+      'Patient Answered: Marks the patient as successfully reached.',
+      'Patient Did Not Answer: Keeps the record open and sends the patient follow-up text, limited to once every 12 hours.',
+    ],
   },
   {
     anchors: ['view-toggle', 'calendar-view-mode', 'reserve-time'],
