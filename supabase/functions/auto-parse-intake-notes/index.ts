@@ -2609,11 +2609,11 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         console.log(`[AUTO-PARSE GHL] Rejected invalid group_number from field "${rawKey}": ${value}`);
       }
     } else if (key.includes('insurance') && key.includes('note')) {
-      result.insurance_info.insurance_notes = value;
+      result.insurance_info.insurance_notes = stripNotCollectedSegments(value);
     } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
                !key.includes('conversation') && !result.insurance_info.insurance_notes) {
-      result.insurance_info.insurance_notes = value;
-      console.log(`[AUTO-PARSE GHL] Captured generic notes field "${rawKey}" as insurance_notes: ${value}`);
+      result.insurance_info.insurance_notes = stripNotCollectedSegments(value);
+      console.log(`[AUTO-PARSE GHL] Captured generic notes field "${rawKey}" as insurance_notes: ${result.insurance_info.insurance_notes}`);
     }
     // Insurance card URL (front + back parsed from GHL upload JSON blob)
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
