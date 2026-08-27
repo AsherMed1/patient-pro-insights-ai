@@ -2225,20 +2225,26 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     // Guards against the AI scraping numbers out of phone-number substrings like "(478) 998-…"
     // by requiring the value to come from the pain-scale line AND be a bare 0-10 integer.
     const pl = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*(?:scale of 1-10|how severe is your pain|pain level)[^:?]*\??\s*:\s*([^\n]+)/i);
+    let painFromScaleLine = false;
     if (pl) {
       const num = pl.match(/\b(10|[0-9])\b/);
       if (num) {
         parsedData.pathology_info.pain_level = num[1];
+        painFromScaleLine = true;
         console.log(`[AUTO-PARSE GAE] Override pain_level: ${num[1]}`);
       }
     }
-    // Always clamp: if the AI produced a pain_level outside 0-10 (e.g. 478 from a phone
-    // number), or one that appears inside a phone-number-shaped substring in the raw notes,
-    // drop it. Better to show blank than to show garbage.
+    // Always clamp the 0-10 range. The phone-number heuristic only applies to values the
+    // AI produced on its own — a value read straight off the pain-scale question line is
+    // authoritative. The heuristic also requires a real phone grouping (3 digits), so
+    // incidental matches like the year in "2026-08-20" no longer delete valid answers.
     if (parsedData.pathology_info.pain_level != null) {
       const raw = String(parsedData.pathology_info.pain_level).trim();
       const n = parseInt(raw, 10);
-      const inPhoneShape = new RegExp(`(?:\\(\\s*${raw}\\s*\\)|${raw}\\s*[-.)]\\s*\\d)`).test(intakeNotes);
+      const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const inPhoneShape = painFromScaleLine
+        ? false
+        : new RegExp(`(?:\\(\\s*\\d{0,2}${esc}\\d{0,2}\\s*\\)\\s*\\d|\\d{2}${esc}\\s*[-.]\\s*\\d{3}|${esc}\\d{2}\\s*[-.]\\s*\\d{4})`).test(intakeNotes);
       if (isNaN(n) || n < 0 || n > 10 || inPhoneShape) {
         console.log(`[AUTO-PARSE GAE] Dropping invalid pain_level: ${raw} (inPhoneShape=${inPhoneShape})`);
         parsedData.pathology_info.pain_level = null;
