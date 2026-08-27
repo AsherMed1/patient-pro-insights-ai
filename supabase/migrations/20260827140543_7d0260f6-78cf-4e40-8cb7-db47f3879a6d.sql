@@ -1,0 +1,2 @@
+ALTER TABLE public.insurance_block_rules DROP CONSTRAINT IF EXISTS insurance_block_rules_rule_type_check;
+ALTER TABLE public.insurance_block_rules ADD CONSTRAINT insurance_block_rules_rule_type_check CHECK (rule_type = ANY (ARRAY['plan'::text, 'group_number'::text, 'id_number'::text]));

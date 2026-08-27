@@ -2,7 +2,7 @@
 // Keep in sync with supabase/functions/_shared/oon-matcher.ts
 
 export type MatchMethod = 'exact' | 'prefix' | 'contains' | 'regex';
-export type RuleType = 'plan' | 'group_number';
+export type RuleType = 'plan' | 'group_number' | 'id_number';
 
 export interface BlockRuleScope {
   project_name?: string | null;
@@ -28,7 +28,7 @@ export interface OonMatch {
   rule_id: string;
   rule_type: RuleType;
   match_method: MatchMethod;
-  matched_on: 'plan' | 'group';
+  matched_on: 'plan' | 'group' | 'id';
   matched_value: string;
   matched_term: string;
   plan_name?: string | null;
@@ -42,6 +42,7 @@ export interface MatchInput {
   serviceLine?: string | null;
   plans: (string | null | undefined)[];
   groupNumbers: (string | null | undefined)[];
+  idNumbers?: (string | null | undefined)[];
 }
 
 export function normalizePlan(value: unknown): string {
@@ -50,6 +51,12 @@ export function normalizePlan(value: unknown): string {
 }
 
 export function normalizeGroup(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+/** Lowercase, strip everything that is not alphanumeric. Used for insurance ID numbers. */
+export function normalizeId(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
@@ -90,6 +97,7 @@ export function evaluateRules(rules: BlockRule[], input: MatchInput): OonMatch[]
   const matches: OonMatch[] = [];
   const plans = (input.plans || []).filter(Boolean) as string[];
   const groups = (input.groupNumbers || []).filter(Boolean) as string[];
+  const ids = (input.idNumbers || []).filter(Boolean) as string[];
 
   for (const rule of rules) {
     if (!rule.is_active) continue;
@@ -112,14 +120,17 @@ export function evaluateRules(rules: BlockRule[], input: MatchInput): OonMatch[]
         }
       }
     } else {
-      const term = rule.match_method === 'regex' ? String(rule.value || '') : normalizeGroup(rule.value);
+      const isId = rule.rule_type === 'id_number';
+      const normalize = isId ? normalizeId : normalizeGroup;
+      const term = rule.match_method === 'regex' ? String(rule.value || '') : normalize(rule.value);
       if (!term) continue;
-      for (const raw of groups) {
-        const subject = rule.match_method === 'regex' ? raw : normalizeGroup(raw);
+      const subjects = isId ? ids : groups;
+      for (const raw of subjects) {
+        const subject = rule.match_method === 'regex' ? raw : normalize(raw);
         if (testTerm(rule.match_method, subject, term)) {
           matches.push({
-            rule_id: rule.id, rule_type: 'group_number', match_method: rule.match_method,
-            matched_on: 'group', matched_value: raw, matched_term: term,
+            rule_id: rule.id, rule_type: isId ? 'id_number' : 'group_number', match_method: rule.match_method,
+            matched_on: isId ? 'id' : 'group', matched_value: raw, matched_term: term,
             plan_name: rule.planName ?? null, note: rule.note ?? null,
           });
           break;

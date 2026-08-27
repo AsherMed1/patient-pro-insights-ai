@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
@@ -64,6 +65,7 @@ const InsuranceRulesConfig = () => {
   const [testServiceLine, setTestServiceLine] = useState<string>('__any__');
   const [testPlan, setTestPlan] = useState('');
   const [testGroup, setTestGroup] = useState('');
+  const [testId, setTestId] = useState('');
 
   // supported-insurance state
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([]);
@@ -140,7 +142,7 @@ const InsuranceRulesConfig = () => {
   }, [rules, plans, aliases, scopes, planNameById]);
 
   const testMatches = useMemo(() => {
-    if (!testPlan.trim() && !testGroup.trim()) return [];
+    if (!testPlan.trim() && !testGroup.trim() && !testId.trim()) return [];
     const input = {
       projectName: testProject === '__all__' ? null : testProject,
       location: testLocation || null,
@@ -148,6 +150,7 @@ const InsuranceRulesConfig = () => {
       serviceLine: testServiceLine === '__any__' ? null : testServiceLine,
       plans: [testPlan],
       groupNumbers: [testGroup],
+      idNumbers: [testId],
     };
     const matches = evaluateRules(compiledRules, input);
     const mode = projectRows.find((p) => p.project_name === testProject)?.oon_mode;
@@ -158,7 +161,7 @@ const InsuranceRulesConfig = () => {
       ));
     }
     return matches;
-  }, [compiledRules, testProject, testLocation, testServiceLine, testPlan, testGroup, projectRows, supported]);
+  }, [compiledRules, testProject, testLocation, testServiceLine, testPlan, testGroup, testId, projectRows, supported]);
 
 
   const addPlan = async () => {
@@ -192,10 +195,13 @@ const InsuranceRulesConfig = () => {
     if (ruleType === 'group_number' && !ruleValue.trim()) {
       return toast({ title: 'Enter a group number pattern', variant: 'destructive' });
     }
+    if (ruleType === 'id_number' && !ruleValue.trim()) {
+      return toast({ title: 'Enter an insurance ID number or pattern', variant: 'destructive' });
+    }
     const { data, error } = await supabase.from('insurance_block_rules').insert({
       rule_type: ruleType,
       plan_id: ruleType === 'plan' ? rulePlanId : null,
-      value: ruleType === 'group_number' ? ruleValue.trim() : (ruleValue.trim() || null),
+      value: ruleType === 'plan' ? (ruleValue.trim() || null) : ruleValue.trim(),
       match_method: ruleMethod,
       is_active: true,
       note: ruleNote.trim() || null,
@@ -253,6 +259,46 @@ const InsuranceRulesConfig = () => {
       });
     });
   }, [rules, scopes, rulesClinicFilter, rulesServiceFilter]);
+
+  /** Clinics that use each canonical plan: accepted lists + clinic-scoped block rules. */
+  const planUsage = useMemo(() => {
+    const norm = (v: string | null | undefined) =>
+      (v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const termsByPlan = new Map<string, Set<string>>();
+    plans.forEach((p) => termsByPlan.set(p.id, new Set([norm(p.canonical_name)])));
+    aliases.forEach((a) => termsByPlan.get(a.plan_id)?.add(norm(a.alias)));
+
+    const usage = new Map<string, Map<string, Set<string>>>();
+    const add = (planId: string, clinic: string, reason: string) => {
+      if (!usage.has(planId)) usage.set(planId, new Map());
+      const byClinic = usage.get(planId)!;
+      if (!byClinic.has(clinic)) byClinic.set(clinic, new Set());
+      byClinic.get(clinic)!.add(reason);
+    };
+
+    supported.forEach((row) => {
+      if (!row.active || !row.project_name) return;
+      if (row.plan_id && termsByPlan.has(row.plan_id)) {
+        add(row.plan_id, row.project_name, 'Accepted list');
+        return;
+      }
+      const rowNorm = norm(row.normalized || row.raw_option);
+      if (!rowNorm) return;
+      plans.forEach((p) => {
+        if (termsByPlan.get(p.id)?.has(rowNorm)) add(p.id, row.project_name, 'Accepted list');
+      });
+    });
+
+    const globalPlans = new Set<string>();
+    rules.forEach((r) => {
+      if (!r.plan_id) return;
+      const list = scopes.filter((sc) => sc.rule_id === r.id && sc.project_name);
+      if (!list.length) { globalPlans.add(r.plan_id); return; }
+      list.forEach((sc) => add(r.plan_id as string, sc.project_name as string, 'Block rule'));
+    });
+
+    return { usage, globalPlans };
+  }, [plans, aliases, supported, rules, scopes]);
 
   const clinicSupported = useMemo(
     () => supported.filter((s) => {
@@ -515,9 +561,49 @@ const InsuranceRulesConfig = () => {
                 <div key={p.id} className="border rounded-md p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{p.canonical_name}</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const byClinic = planUsage.usage.get(p.id);
+                        const count = byClinic?.size ?? 0;
+                        const isGlobal = planUsage.globalPlans.has(p.id);
+                        return (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-7 text-xs font-normal">
+                                {count} {count === 1 ? 'clinic' : 'clinics'}
+                                {isGlobal ? ' + all clinics' : ''}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-72 bg-popover z-50 max-h-80 overflow-auto">
+                              <p className="text-xs font-medium mb-2">Clinics using {p.canonical_name}</p>
+                              {isGlobal && (
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  Also targeted by a block rule that applies to all clinics.
+                                </p>
+                              )}
+                              {count === 0 && !isGlobal && (
+                                <p className="text-xs text-muted-foreground">No clinics use this plan yet.</p>
+                              )}
+                              <ul className="space-y-1">
+                                {Array.from(byClinic?.entries() ?? [])
+                                  .sort((a, b) => a[0].localeCompare(b[0]))
+                                  .map(([clinic, reasons]) => (
+                                    <li key={clinic} className="text-xs flex justify-between gap-2">
+                                      <span>{clinic}</span>
+                                      <span className="text-muted-foreground shrink-0">
+                                        {Array.from(reasons).join(', ')}
+                                      </span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      })()}
                     <Button variant="ghost" size="sm" onClick={() => deleteRow('insurance_canonical_plans', p.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {aliases.filter((a) => a.plan_id === p.id).map((a) => (
@@ -548,7 +634,7 @@ const InsuranceRulesConfig = () => {
 
           <TabsContent value="rules" className="space-y-4 pt-4">
             <p className="text-xs text-muted-foreground max-w-3xl">
-              Denylist. A rule flags an appointment when the patient's insurance plan (or group number) matches.
+              Denylist. A rule flags an appointment when the patient's insurance plan, group number or insurance ID matches.
               Rule type picks what is compared; Match method controls how strictly (exact / starts with / contains
               / regex). Clinic scope and Location limit the rule to one clinic or site — leave them blank to apply
               everywhere. The Note explains why it is out of network and is shown on the flag.
@@ -562,6 +648,7 @@ const InsuranceRulesConfig = () => {
                   <SelectContent>
                     <SelectItem value="plan">Plan name</SelectItem>
                     <SelectItem value="group_number">Group number</SelectItem>
+                    <SelectItem value="id_number">ID number</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -577,8 +664,9 @@ const InsuranceRulesConfig = () => {
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <Label>Group number pattern</Label>
-                  <Input value={ruleValue} onChange={(e) => setRuleValue(e.target.value)} placeholder="e.g. 12345" />
+                  <Label>{ruleType === 'id_number' ? 'ID number pattern' : 'Group number pattern'}</Label>
+                  <Input value={ruleValue} onChange={(e) => setRuleValue(e.target.value)}
+                    placeholder={ruleType === 'id_number' ? 'e.g. XDG or ^9\\d{8}$' : 'e.g. 12345'} />
                 </div>
               )}
               <div className="space-y-1">
@@ -703,7 +791,9 @@ const InsuranceRulesConfig = () => {
               <TableBody>
                 {visibleRules.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell>{r.rule_type === 'group_number' ? 'Group number' : 'Plan'}</TableCell>
+                    <TableCell>
+                      {r.rule_type === 'group_number' ? 'Group number' : r.rule_type === 'id_number' ? 'ID number' : 'Plan'}
+                    </TableCell>
                     <TableCell>{r.plan_id ? planNameById.get(r.plan_id) : r.value}</TableCell>
                     <TableCell>{r.match_method}</TableCell>
                     <TableCell className="text-xs">{scopeLabel(r.id)}</TableCell>
@@ -765,14 +855,18 @@ const InsuranceRulesConfig = () => {
                 <Label>Group number</Label>
                 <Input value={testGroup} onChange={(e) => setTestGroup(e.target.value)} />
               </div>
+              <div className="space-y-1">
+                <Label>Insurance ID</Label>
+                <Input value={testId} onChange={(e) => setTestId(e.target.value)} placeholder="e.g. XDG123456789" />
+              </div>
             </div>
-            {(testPlan.trim() || testGroup.trim()) && (
+            {(testPlan.trim() || testGroup.trim() || testId.trim()) && (
               testMatches.length ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-1">
                   <p className="font-medium text-amber-800">Would be flagged as Potential OON</p>
                   {testMatches.map((m) => (
                     <p key={m.rule_id} className="text-sm text-amber-800">
-                      {m.matched_on === 'group' ? 'Group #' : 'Plan'} “{m.matched_value}” matched
+                      {m.matched_on === 'group' ? 'Group #' : m.matched_on === 'id' ? 'Insurance ID' : 'Plan'} “{m.matched_value}” matched
                       {m.plan_name ? ` ${m.plan_name}` : ''} via {m.match_method} “{m.matched_term}”
                       {m.note ? ` — ${m.note}` : ''}
                     </p>
