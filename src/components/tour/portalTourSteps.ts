@@ -82,6 +82,13 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
     body: 'Internal Notes live at the bottom of each patient record. Use Add Note for anything our team should know — notes are shared with us and kept with the appointment.',
   },
   {
+    anchor: 'welcome-call-attempt',
+    section: 'appointments-list',
+    placement: 'bottom',
+    title: 'Logging a Welcome Call',
+    body: 'Use Welcome Call attempt in the notes header to document every welcome call. Choose Patient Answered or Patient Did Not Answer, add the required internal note, and save. Answered marks the patient as Successfully Reached; Did Not Answer keeps the record open and automatically triggers the patient follow-up text (once every 12 hours). Attempts are never overwritten — the badge shows the current state and attempt count, and previous attempts are listed in the dialog for the next caller. Logging an attempt never changes the appointment status.',
+  },
+  {
     anchors: ['view-toggle', 'calendar-view-mode', 'reserve-time'],
     section: 'appointments-calendar',
     placement: 'bottom',
