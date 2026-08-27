@@ -147,6 +147,13 @@ export default function RecaptureCaseDrawer({
     if (c.work_status === 'new') update.work_status = 'opened';
     const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', c.id);
     if (!error) {
+      void logRecaptureActivity({
+        caseId: c.id,
+        activityType: c.work_status === 'completed' ? 'reopened' : 'opened',
+        description: c.work_status === 'completed' ? 'Completed record reopened' : 'Record opened',
+        actorUserId: user?.id || null,
+        actorName: actor,
+      });
       patch({
         opened_at: update.opened_at,
         opened_by: user?.id || null,
