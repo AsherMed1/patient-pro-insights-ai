@@ -224,13 +224,12 @@ serve(async (req) => {
       );
     }
 
-    // Step 1: Fetch calendar details to determine type, team members, and
-    // double-booking capacity (appointmentPerSlot). We fetch this BEFORE the
-    // overlap guard so the guard can be capacity-aware — a calendar
-    // configured for multiple bookings per slot does NOT silently cancel
-    // coexisting appointments when a block is created.
+    // Step 1: Fetch calendar details to determine double-booking capacity
+    // (appointmentPerSlot). We fetch this BEFORE the overlap guard so the
+    // guard can be capacity-aware — a calendar configured for multiple
+    // bookings per slot does NOT silently cancel coexisting appointments
+    // when a block is created.
     let calendarData: CalendarData | null = null;
-    let teamMembers: TeamMember[] = [];
     let appointmentPerSlot = 1;
 
     try {
@@ -249,15 +248,6 @@ serve(async (req) => {
 
       calendarData = await ghlJson(calendarResponse);
       console.log('[CREATE-GHL-BLOCK-SLOT] Calendar data:', JSON.stringify(calendarData, null, 2));
-
-      // Extract team members from various possible locations
-      teamMembers = calendarData?.calendar?.teamMembers ||
-                    calendarData?.teamMembers ||
-                    calendarData?.calendar?.users ||
-                    calendarData?.users ||
-                    [];
-
-      console.log('[CREATE-GHL-BLOCK-SLOT] Found team members:', teamMembers.length);
 
       // Extract appointmentPerSlot (GHL exposes it under several field names).
       const cal: any = calendarData?.calendar || calendarData || {};
