@@ -400,6 +400,9 @@ serve(async (req) => {
     if (!isUpdate && isTerminalStatus) {
       console.log(`[${requestId}] ⏭️ Skipping new appointment with terminal status: "${webhookData.status}"`)
       console.log(`[${requestId}] Lead: ${webhookData.lead_name}, Project: ${webhookData.project_name}`)
+      // No replacement row will be created — leave declined snapshots visible.
+      pendingSnapshotSupersede.delete(requestId)
+      
       
       return new Response(
         JSON.stringify({ 
@@ -685,6 +688,23 @@ serve(async (req) => {
 
       if (error) throw error
       appointmentRecord = data
+
+      // A replacement row now exists — retire the declined/dismissed snapshots that
+      // shared this GHL event ID (deferred from findExistingAppointment).
+      const deferredSnapshots = pendingSnapshotSupersede.get(requestId)
+      if (appointmentRecord && deferredSnapshots?.length) {
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({ is_superseded: true })
+            .in('id', deferredSnapshots)
+          console.log(`[${requestId}] Superseded ${deferredSnapshots.length} declined/dismissed snapshot(s) after replacement row ${appointmentRecord.id}`)
+        } catch (e) {
+          console.warn(`[${requestId}] Failed to supersede deferred snapshot(s):`, e)
+        }
+      }
+      pendingSnapshotSupersede.delete(requestId)
+
 
       // Safety net: make sure the intake source (and the trainee routing that depends on
       // it) actually landed on the row. If the insert path dropped it for any reason,
@@ -3471,6 +3491,10 @@ async function syncContactNameAcrossRows(supabase: any, newRow: any, requestId: 
   }
 }
 
+// Declined/dismissed snapshots whose supersede is deferred until a replacement row
+// is actually inserted (keyed by requestId). See findExistingAppointment.
+const pendingSnapshotSupersede = new Map<string, string[]>()
+
 // Find existing appointment (returns full record for field comparison)
 
 async function findExistingAppointment(
@@ -3519,21 +3543,19 @@ async function findExistingAppointment(
       const usable = rows.filter(r => !isSnapshot(r) && !r.is_reserved_block)
 
       if (usable.length === 0) {
-        // Every row for this event ID is a frozen snapshot — supersede them and create fresh.
+        // Every row for this event ID is a frozen snapshot. DO NOT supersede them here:
+        // the caller skips inserts for terminal statuses (a GHL cancellation echo after a
+        // Review Queue decline), which used to retire the snapshot with no replacement and
+        // make the patient invisible everywhere. Defer the supersede until a replacement
+        // row is actually created.
         const snapshotIds = rows.filter(isSnapshot).map(r => r.id)
-        console.log(`[${requestId}] Found ${snapshotIds.length} declined/dismissed snapshot(s) for ghl_appointment_id ${ghlAppointmentId} — superseding and creating a new row`)
+        console.log(`[${requestId}] Found ${snapshotIds.length} declined/dismissed snapshot(s) for ghl_appointment_id ${ghlAppointmentId} — deferring supersede until a replacement row exists`)
         if (snapshotIds.length > 0) {
-          try {
-            await supabase
-              .from('all_appointments')
-              .update({ is_superseded: true })
-              .in('id', snapshotIds)
-          } catch (e) {
-            console.warn(`[${requestId}] Failed to mark declined snapshot(s) superseded:`, e)
-          }
+          pendingSnapshotSupersede.set(requestId, snapshotIds)
         }
         return null
       }
+
 
       // Newest usable row wins: a single GHL event cannot hold two live bookings.
       const chosen = usable.find(r => r.is_superseded !== true) || usable[0]

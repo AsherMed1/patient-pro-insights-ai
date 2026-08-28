@@ -470,10 +470,16 @@ const ReviewQueue: React.FC = () => {
       .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at, insurance_intake_source, trainee_name, returned_reason, returned_at, returned_by')
       .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : queueView === 'oon' ? 'oon' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-      // Retired rows (replaced by a newer booking, or deleted in GHL) must never
-      // stay actionable in the queue — the counts already exclude them.
-      .or('is_superseded.is.null,is_superseded.eq.false')
       .limit(500);
+
+    // Retired rows (replaced by a newer booking, or deleted in GHL) must never stay
+    // actionable in the queue — the counts already exclude them. The Declined tab is
+    // the exception: a declined snapshot may be superseded later, and it must remain
+    // auditable there instead of vanishing from the portal entirely.
+    if (queueView !== 'declined') {
+      q = q.or('is_superseded.is.null,is_superseded.eq.false');
+    }
+
 
     if (queueView === 'declined' || queueView === 'approved' || queueView === 'oon') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
@@ -541,11 +547,15 @@ const ReviewQueue: React.FC = () => {
         .from('all_appointments')
         .select('id', { count: 'exact', head: true })
         .eq('review_status', status)
-        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-        // The lists hide retired (superseded) rows — the badges must too, or a
-        // bucket shows a bigger number than the rows you can actually count.
-        .or('is_superseded.is.null,is_superseded.eq.false');
+        .or('is_reserved_block.is.null,is_reserved_block.eq.false');
+      // The lists hide retired (superseded) rows — the badges must too, or a
+      // bucket shows a bigger number than the rows you can actually count.
+      // Declined keeps superseded snapshots visible, so its badge counts them.
+      if (status !== 'declined') {
+        q = q.or('is_superseded.is.null,is_superseded.eq.false');
+      }
       if (stage) q = q.eq('review_stage', stage);
+
 
       // Mirror the list filters so the badges match what is on screen
       if (projectFilter !== 'ALL') q = q.eq('project_name', projectFilter);
