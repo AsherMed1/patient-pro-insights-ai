@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
@@ -24,19 +25,10 @@ interface CreateBlockSlotRequest {
   overlapping_appointment_ids?: string[];
 }
 
-interface TeamMember {
-  userId?: string;
-  id?: string;
-}
-
 interface CalendarData {
   calendar?: {
-    teamMembers?: TeamMember[];
-    users?: TeamMember[];
     calendarType?: string;
   };
-  teamMembers?: TeamMember[];
-  users?: TeamMember[];
   calendarType?: string;
 }
 
@@ -233,13 +225,12 @@ serve(async (req) => {
       );
     }
 
-    // Step 1: Fetch calendar details to determine type, team members, and
-    // double-booking capacity (appointmentPerSlot). We fetch this BEFORE the
-    // overlap guard so the guard can be capacity-aware — a calendar
-    // configured for multiple bookings per slot does NOT silently cancel
-    // coexisting appointments when a block is created.
+    // Step 1: Fetch calendar details to determine double-booking capacity
+    // (appointmentPerSlot). We fetch this BEFORE the overlap guard so the
+    // guard can be capacity-aware — a calendar configured for multiple
+    // bookings per slot does NOT silently cancel coexisting appointments
+    // when a block is created.
     let calendarData: CalendarData | null = null;
-    let teamMembers: TeamMember[] = [];
     let appointmentPerSlot = 1;
 
     try {
@@ -258,15 +249,6 @@ serve(async (req) => {
 
       calendarData = await ghlJson(calendarResponse);
       console.log('[CREATE-GHL-BLOCK-SLOT] Calendar data:', JSON.stringify(calendarData, null, 2));
-
-      // Extract team members from various possible locations
-      teamMembers = calendarData?.calendar?.teamMembers ||
-                    calendarData?.teamMembers ||
-                    calendarData?.calendar?.users ||
-                    calendarData?.users ||
-                    [];
-
-      console.log('[CREATE-GHL-BLOCK-SLOT] Found team members:', teamMembers.length);
 
       // Extract appointmentPerSlot (GHL exposes it under several field names).
       const cal: any = calendarData?.calendar || calendarData || {};
@@ -499,92 +481,95 @@ serve(async (req) => {
       allBlockIds = [ghlAppointmentId].filter(Boolean) as string[];
       ghlSynced = true;
     } else {
-      // Step 3: For round-robin/service calendars, use assignedUserId instead of calendarId
-      console.log('[CREATE-GHL-BLOCK-SLOT] calendarId approach failed, trying assignedUserId for each team member...');
-      console.log('[CREATE-GHL-BLOCK-SLOT] Block-slots error:', ghlData);
+      // Calendar-level block failed. We intentionally do NOT fall back to
+      // per-user (assignedUserId) blocks — reserved blocks are always
+      // calendar-level. Alert Slack so the team can fix the calendar
+      // configuration in GHL, log an audit row, and fail the request so no
+      // local reservation is created for a block GHL rejected.
+      console.error('[CREATE-GHL-BLOCK-SLOT] Calendar-level block-slots failed:', ghlResponse.status, ghlData);
 
-      if (teamMembers.length === 0) {
-        // Try to get users from location as fallback
-        console.log('[CREATE-GHL-BLOCK-SLOT] No team members found, fetching location users...');
-        try {
-          const usersResponse = await fetch(
-            `https://services.leadconnectorhq.com/users/?locationId=${project.ghl_location_id}`,
-            {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${project.ghl_api_key}`,
-                'Version': '2021-07-28',
-                'Content-Type': 'application/json',
-              },
-            }
-          );
+      const ghlErrorDetail = ghlData?.message || ghlData?.error || JSON.stringify(ghlData) || `HTTP ${ghlResponse.status}`;
 
-          const usersData = await ghlJson(usersResponse);
-          if (usersData?.users && usersData.users.length > 0) {
-            teamMembers = usersData.users.map((u: { id: string }) => ({ userId: u.id }));
-            console.log('[CREATE-GHL-BLOCK-SLOT] Found location users:', teamMembers.length);
-          }
-        } catch (e) {
-          console.error('[CREATE-GHL-BLOCK-SLOT] Error fetching location users:', e);
-        }
+      // Audit trail (non-blocking)
+      try {
+        await supabase.from('security_audit_log').insert({
+          event_type: 'block_creation_failed_calendar_level',
+          user_id: user_id || null,
+          details: {
+            project_name,
+            calendar_id,
+            calendar_name: calendar_name || null,
+            start_time,
+            end_time,
+            title: title || 'Reserved',
+            reason: reason || null,
+            attempted_by: user_name || 'Portal User',
+            ghl_status: ghlResponse.status,
+            ghl_error: ghlErrorDetail,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } catch (auditErr) {
+        console.error('[CREATE-GHL-BLOCK-SLOT] Audit log failed (non-blocking):', auditErr);
       }
 
-      // If we have team members, create blocks for each
-      if (teamMembers.length > 0) {
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const member of teamMembers) {
-          const memberUserId = member.userId || member.id;
-          if (!memberUserId) continue;
-
-          const userBlockPayload = {
-            assignedUserId: memberUserId,
-            locationId: project.ghl_location_id,
-            title: title || 'Reserved',
-            startTime: start_time,
-            endTime: end_time,
+      // Slack alert (non-blocking)
+      const slackWebhook = Deno.env.get('SLACK_CALENDAR_UPDATES_WEBHOOK_URL');
+      if (slackWebhook) {
+        try {
+          const slackMessage = {
+            blocks: [
+              {
+                type: 'header',
+                text: { type: 'plain_text', text: '🚫 Reserved Time Block FAILED (Calendar-Level)', emoji: true },
+              },
+              {
+                type: 'section',
+                fields: [
+                  { type: 'mrkdwn', text: `*Clinic:*\n${project_name}` },
+                  { type: 'mrkdwn', text: `*Calendar:*\n${calendar_name || calendar_id}` },
+                  { type: 'mrkdwn', text: `*Attempted By:*\n${user_name || 'Portal User'}` },
+                  { type: 'mrkdwn', text: `*Window:*\n${start_time} → ${end_time}` },
+                ],
+              },
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: `*GHL Error (${ghlResponse.status}):*\n\`\`\`${String(ghlErrorDetail).slice(0, 800)}\`\`\`` },
+              },
+              {
+                type: 'context',
+                elements: [
+                  {
+                    type: 'mrkdwn',
+                    text: '⚠️ No fallback block was created. The reservation was NOT saved. Check the calendar type/configuration in GHL — round-robin or service calendars may not accept calendar-level blocks.',
+                  },
+                ],
+              },
+            ],
           };
 
-          console.log('[CREATE-GHL-BLOCK-SLOT] Creating block for user:', memberUserId);
-
-          try {
-            const userBlockResponse = await fetch(
-              'https://services.leadconnectorhq.com/calendars/events/block-slots',
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${project.ghl_api_key}`,
-                  'Version': '2021-04-15',
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userBlockPayload),
-              }
-            );
-
-            const userBlockData = await ghlJson(userBlockResponse);
-
-            if (userBlockResponse.ok) {
-              const blockId = userBlockData?.id || userBlockData?.appointmentId;
-              if (blockId) {
-                allBlockIds.push(blockId);
-                if (!ghlAppointmentId) ghlAppointmentId = blockId;
-              }
-              successCount++;
-              ghlSynced = true;
-              console.log('[CREATE-GHL-BLOCK-SLOT] Block created for user:', memberUserId, blockId);
-            } else {
-              failCount++;
-              console.log('[CREATE-GHL-BLOCK-SLOT] Failed to create block for user:', memberUserId, userBlockData);
-            }
-          } catch (e) {
-            failCount++;
-            console.error('[CREATE-GHL-BLOCK-SLOT] Error creating block for user:', memberUserId, e);
-          }
+          const slackRes = await fetch(slackWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(slackMessage),
+          });
+          console.log('[CREATE-GHL-BLOCK-SLOT] Slack failure alert sent, status:', slackRes.status);
+        } catch (slackErr) {
+          console.error('[CREATE-GHL-BLOCK-SLOT] Slack alert failed (non-blocking):', slackErr);
         }
-
-        console.log('[CREATE-GHL-BLOCK-SLOT] Team member results:', { successCount, failCount, allBlockIds });
+      } else {
+        console.warn('[CREATE-GHL-BLOCK-SLOT] SLACK_CALENDAR_UPDATES_WEBHOOK_URL not configured — skipping failure alert');
       }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: 'CALENDAR_LEVEL_BLOCK_FAILED',
+          error: `GHL rejected the calendar-level block (HTTP ${ghlResponse.status}). The reservation was not saved. The team has been notified in Slack to review this calendar's configuration.`,
+          ghl_error: ghlErrorDetail,
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Telemetry: log when a block was successfully created over patient appointments
@@ -658,12 +643,9 @@ serve(async (req) => {
           ghl_appointment_id: ghlAppointmentId,
           local_appointment_id: localResult.local_appointment_id,
           all_block_ids: allBlockIds,
-          team_members_blocked: allBlockIds.length,
           ghl_synced: ghlSynced,
           local_saved: true,
-          message: ghlSynced 
-            ? `Successfully created reservation${allBlockIds.length > 1 ? ` (${allBlockIds.length} team members blocked)` : ''}`
-            : 'Reservation saved locally but not synced to GHL',
+          message: 'Successfully created calendar-level reservation',
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -675,12 +657,9 @@ serve(async (req) => {
         success: true,
         ghl_appointment_id: ghlAppointmentId,
         all_block_ids: allBlockIds,
-        team_members_blocked: allBlockIds.length,
         ghl_synced: ghlSynced,
         local_saved: false,
-        message: ghlSynced 
-          ? `Successfully blocked ${allBlockIds.length} slot(s) in GHL` 
-          : 'Block saved but not synced to GHL (no available slots or API limitation)'
+        message: 'Successfully created calendar-level block in GHL',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
