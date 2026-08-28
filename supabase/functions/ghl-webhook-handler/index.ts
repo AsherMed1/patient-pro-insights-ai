@@ -2450,8 +2450,26 @@ function getUpdateableFields(
     const isWelcomeCallRestatement =
       existingStatusForEcho === 'welcome call' && bookingRestatements.includes(incomingNormalized)
 
+    // Echo of OUR OWN outbound push. When the portal pushes a status to GHL and the
+    // user immediately corrects it (e.g. mis-click "Showed" → "Welcome Call"), GHL
+    // fires a webhook restating the pushed status seconds later. Without this guard
+    // that echo overwrites the correction and is logged as a real "via GHL sync"
+    // change. Only suppress while the push is fresh AND the portal has since moved on.
+    const lastPushedStatus = String((existingAppointment as any).last_ghl_sync_status || '').trim().toLowerCase()
+    const lastPushedAt = (existingAppointment as any).last_ghl_sync_at
+      ? new Date((existingAppointment as any).last_ghl_sync_at).getTime()
+      : 0
+    const pushAgeSeconds = lastPushedAt ? (Date.now() - lastPushedAt) / 1000 : Infinity
+    const isPortalPushEcho =
+      !!lastPushedStatus &&
+      lastPushedStatus === incomingNormalized &&
+      existingStatusForEcho !== incomingNormalized &&
+      pushAgeSeconds < 180
+
     if (isPortalOnlyTerminal) {
       console.log(`[WEBHOOK] Preserving portal-only terminal status "${existingAppointment.status}" — ignoring incoming "${webhookData.status}"`)
+    } else if (isPortalPushEcho) {
+      console.log(`[WEBHOOK] Ignoring incoming status "${webhookData.status}" — echo of the portal's own push ${Math.round(pushAgeSeconds)}s ago; portal has since moved to "${existingAppointment.status}"`)
     } else if (isWelcomeCallRestatement) {
       console.log(`[WEBHOOK] Preserving portal status "Welcome Call" — incoming "${webhookData.status}" is a GHL booking-state restatement, not a real change`)
     } else {
