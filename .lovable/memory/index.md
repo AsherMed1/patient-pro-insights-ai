@@ -1,0 +1,1 @@
+- [Declined Snapshot Visibility](mem://data-integrity/declined-snapshot-visibility) — Declined snapshots only superseded after a replacement row exists; Declined tab shows superseded rows.
