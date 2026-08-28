@@ -181,6 +181,18 @@ export async function changeAppointmentStatus({
     ghlVerified = null;
   } else if (syncData?.ghl_appointment_id) {
     try {
+      // Record the push BEFORE it lands: GoHighLevel echoes the pushed status back as
+      // an inbound webhook seconds later. ghl-webhook-handler reads these columns to
+      // recognise its own echo and avoid stomping a correction the user made in between.
+      await supabase
+        .from('all_appointments')
+        .update({
+          last_ghl_sync_status: ghlStatus,
+          last_ghl_sync_at: new Date().toISOString(),
+          last_sync_source: 'portal_status_push',
+        })
+        .eq('id', appointmentId);
+
       const { data: ghlResult, error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
         body: {
           ghl_appointment_id: syncData.ghl_appointment_id,
