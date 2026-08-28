@@ -400,6 +400,9 @@ serve(async (req) => {
     if (!isUpdate && isTerminalStatus) {
       console.log(`[${requestId}] ⏭️ Skipping new appointment with terminal status: "${webhookData.status}"`)
       console.log(`[${requestId}] Lead: ${webhookData.lead_name}, Project: ${webhookData.project_name}`)
+      // No replacement row will be created — leave declined snapshots visible.
+      pendingSnapshotSupersede.delete(requestId)
+      
       
       return new Response(
         JSON.stringify({ 
