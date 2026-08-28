@@ -24,19 +24,10 @@ interface CreateBlockSlotRequest {
   overlapping_appointment_ids?: string[];
 }
 
-interface TeamMember {
-  userId?: string;
-  id?: string;
-}
-
 interface CalendarData {
   calendar?: {
-    teamMembers?: TeamMember[];
-    users?: TeamMember[];
     calendarType?: string;
   };
-  teamMembers?: TeamMember[];
-  users?: TeamMember[];
   calendarType?: string;
 }
 
