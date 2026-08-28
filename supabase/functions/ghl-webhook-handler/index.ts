@@ -3519,21 +3519,19 @@ async function findExistingAppointment(
       const usable = rows.filter(r => !isSnapshot(r) && !r.is_reserved_block)
 
       if (usable.length === 0) {
-        // Every row for this event ID is a frozen snapshot — supersede them and create fresh.
+        // Every row for this event ID is a frozen snapshot. DO NOT supersede them here:
+        // the caller skips inserts for terminal statuses (a GHL cancellation echo after a
+        // Review Queue decline), which used to retire the snapshot with no replacement and
+        // make the patient invisible everywhere. Defer the supersede until a replacement
+        // row is actually created.
         const snapshotIds = rows.filter(isSnapshot).map(r => r.id)
-        console.log(`[${requestId}] Found ${snapshotIds.length} declined/dismissed snapshot(s) for ghl_appointment_id ${ghlAppointmentId} — superseding and creating a new row`)
+        console.log(`[${requestId}] Found ${snapshotIds.length} declined/dismissed snapshot(s) for ghl_appointment_id ${ghlAppointmentId} — deferring supersede until a replacement row exists`)
         if (snapshotIds.length > 0) {
-          try {
-            await supabase
-              .from('all_appointments')
-              .update({ is_superseded: true })
-              .in('id', snapshotIds)
-          } catch (e) {
-            console.warn(`[${requestId}] Failed to mark declined snapshot(s) superseded:`, e)
-          }
+          pendingSnapshotSupersede.set(requestId, snapshotIds)
         }
         return null
       }
+
 
       // Newest usable row wins: a single GHL event cannot hold two live bookings.
       const chosen = usable.find(r => r.is_superseded !== true) || usable[0]
