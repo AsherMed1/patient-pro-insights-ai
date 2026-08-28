@@ -643,12 +643,9 @@ serve(async (req) => {
           ghl_appointment_id: ghlAppointmentId,
           local_appointment_id: localResult.local_appointment_id,
           all_block_ids: allBlockIds,
-          team_members_blocked: allBlockIds.length,
           ghl_synced: ghlSynced,
           local_saved: true,
-          message: ghlSynced 
-            ? `Successfully created reservation${allBlockIds.length > 1 ? ` (${allBlockIds.length} team members blocked)` : ''}`
-            : 'Reservation saved locally but not synced to GHL',
+          message: 'Successfully created calendar-level reservation',
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -660,12 +657,9 @@ serve(async (req) => {
         success: true,
         ghl_appointment_id: ghlAppointmentId,
         all_block_ids: allBlockIds,
-        team_members_blocked: allBlockIds.length,
         ghl_synced: ghlSynced,
         local_saved: false,
-        message: ghlSynced 
-          ? `Successfully blocked ${allBlockIds.length} slot(s) in GHL` 
-          : 'Block saved but not synced to GHL (no available slots or API limitation)'
+        message: 'Successfully created calendar-level block in GHL',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
