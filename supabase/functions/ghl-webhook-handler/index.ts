@@ -686,6 +686,23 @@ serve(async (req) => {
       if (error) throw error
       appointmentRecord = data
 
+      // A replacement row now exists — retire the declined/dismissed snapshots that
+      // shared this GHL event ID (deferred from findExistingAppointment).
+      const deferredSnapshots = pendingSnapshotSupersede.get(requestId)
+      if (appointmentRecord && deferredSnapshots?.length) {
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({ is_superseded: true })
+            .in('id', deferredSnapshots)
+          console.log(`[${requestId}] Superseded ${deferredSnapshots.length} declined/dismissed snapshot(s) after replacement row ${appointmentRecord.id}`)
+        } catch (e) {
+          console.warn(`[${requestId}] Failed to supersede deferred snapshot(s):`, e)
+        }
+      }
+      pendingSnapshotSupersede.delete(requestId)
+
+
       // Safety net: make sure the intake source (and the trainee routing that depends on
       // it) actually landed on the row. If the insert path dropped it for any reason,
       // write it explicitly so the record cannot silently fall back to the New bucket.
