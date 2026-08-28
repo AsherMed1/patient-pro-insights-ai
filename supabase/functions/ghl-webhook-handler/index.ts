@@ -3471,6 +3471,10 @@ async function syncContactNameAcrossRows(supabase: any, newRow: any, requestId: 
   }
 }
 
+// Declined/dismissed snapshots whose supersede is deferred until a replacement row
+// is actually inserted (keyed by requestId). See findExistingAppointment.
+const pendingSnapshotSupersede = new Map<string, string[]>()
+
 // Find existing appointment (returns full record for field comparison)
 
 async function findExistingAppointment(
