@@ -95,13 +95,36 @@ serve(async (req) => {
       }
     }
 
-    const apiKey = ghl_api_key || Deno.env.get('GHL_LOCATION_API_KEY');
+    // Resolve the clinic's own key when the caller did not supply one. The global
+    // env key is a last resort — using it for another sub-account returns 401
+    // "Invalid JWT" and silently drops the tag push (Emage decline, Aug 2026).
+    let apiKey = ghl_api_key as string | undefined;
+    if (!apiKey) {
+      const { data: apptRows } = await supabase
+        .from('all_appointments')
+        .select('project_name, created_at')
+        .eq('ghl_id', ghl_contact_id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const projectName = apptRows?.[0]?.project_name;
+      if (projectName) {
+        const { data: proj } = await supabase
+          .from('projects')
+          .select('ghl_api_key')
+          .eq('project_name', projectName)
+          .maybeSingle();
+        apiKey = (proj as any)?.ghl_api_key || undefined;
+        if (apiKey) console.log(`Resolved GHL API key from project: ${projectName}`);
+      }
+    }
+    apiKey = apiKey || Deno.env.get('GHL_LOCATION_API_KEY');
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: 'GHL API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
 
     const url = `https://services.leadconnectorhq.com/contacts/${ghl_contact_id}/tags`;
     const method = op === 'add' ? 'POST' : 'DELETE';
