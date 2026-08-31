@@ -823,7 +823,11 @@ serve(async (req) => {
           all_block_ids: allBlockIds,
           ghl_synced: ghlSynced,
           local_saved: true,
-          message: 'Successfully created calendar-level reservation',
+          block_level: blockLevel,
+          team_members_blocked: teamMembersBlocked,
+          message: blockLevel === 'user'
+            ? `Reserved — blocked ${teamMembersBlocked} provider${teamMembersBlocked === 1 ? '' : 's'} (calendar is not an event calendar in GHL)`
+            : 'Successfully created calendar-level reservation',
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -837,7 +841,11 @@ serve(async (req) => {
         all_block_ids: allBlockIds,
         ghl_synced: ghlSynced,
         local_saved: false,
-        message: 'Successfully created calendar-level block in GHL',
+        block_level: blockLevel,
+        team_members_blocked: teamMembersBlocked,
+        message: blockLevel === 'user'
+          ? `Successfully created ${teamMembersBlocked} user-level block${teamMembersBlocked === 1 ? '' : 's'} in GHL`
+          : 'Successfully created calendar-level block in GHL',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
