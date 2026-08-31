@@ -649,32 +649,8 @@ serve(async (req) => {
               console.error('[CREATE-GHL-BLOCK-SLOT] Fallback audit log failed (non-blocking):', auditErr);
             }
 
-            await postSlack({
-              blocks: [
-                {
-                  type: 'header',
-                  text: { type: 'plain_text', text: 'ℹ️ Reserved Time Block created at USER level', emoji: true },
-                },
-                {
-                  type: 'section',
-                  fields: [
-                    { type: 'mrkdwn', text: `*Clinic:*\n${project_name}` },
-                    { type: 'mrkdwn', text: `*Calendar:*\n${calendar_name || calendar_id}` },
-                    { type: 'mrkdwn', text: `*Reserved By:*\n${user_name || 'Portal User'}` },
-                    { type: 'mrkdwn', text: `*Window:*\n${start_time} → ${end_time}` },
-                  ],
-                },
-                {
-                  type: 'context',
-                  elements: [
-                    {
-                      type: 'mrkdwn',
-                      text: `Blocked ${teamMembersBlocked} team member${teamMembersBlocked === 1 ? '' : 's'} individually — this calendar is round-robin/service type, so GHL rejected a calendar-level block.`,
-                    },
-                  ],
-                },
-              ],
-            });
+            // No extra Slack post here — the portal already sends the standard
+            // "Calendar Update: Reserved Time Block" message via notify-calendar-update.
           }
         }
       }
