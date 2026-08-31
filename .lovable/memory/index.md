@@ -1,1 +1,2 @@
 - [Declined Snapshot Visibility](mem://data-integrity/declined-snapshot-visibility) — Declined snapshots only superseded after a replacement row exists; Declined tab shows superseded rows.
+- [Cancellation Reversal + Identity Edits](mem://data-integrity/cancellation-reversal-and-identity-edits) — Undoing a cancel/no-show within 5 min retracts GHL lifecycle tags; Review Queue name/DOB edits log an internal note.
