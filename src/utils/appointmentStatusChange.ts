@@ -252,6 +252,54 @@ export async function changeAppointmentStatus({
     } as any);
   }
 
+  // Reversal guard: a cancellation / no-show that is undone shortly afterwards
+  // (mis-click, wrong record) must not leave the GHL contact tagged
+  // `cancelled-portal` / `do-not-reschedule` — those tags keep driving the
+  // client's cancellation workflows for a patient whose appointment is live again.
+  const REVERSAL_WINDOW_MS = 5 * 60 * 1000;
+  const oldLower = oldStatus.toLowerCase();
+  const newLower = status.toLowerCase();
+  const wasCancelKind = oldLower === 'cancelled' || oldLower === 'canceled';
+  const wasNoShowKind = oldLower === 'no show' || oldLower === 'noshow';
+  const backToActive = ['confirmed', 'welcome call', 'pending', 'rescheduled', 'showed'].includes(newLower);
+
+  if ((wasCancelKind || wasNoShowKind) && backToActive) {
+    try {
+      const { data: reversalRow } = await supabase
+        .from('all_appointments')
+        .select('cancellation_reason, updated_at')
+        .eq('id', appointmentId)
+        .maybeSingle();
+
+      const { data: lastTagNote } = await supabase
+        .from('appointment_notes')
+        .select('created_at')
+        .eq('appointment_id', appointmentId)
+        .ilike('note_text', 'GHL % tags applied:%')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const pushedAt = lastTagNote?.created_at ? new Date(lastTagNote.created_at).getTime() : null;
+      const withinWindow = pushedAt !== null && Date.now() - pushedAt <= REVERSAL_WINDOW_MS;
+
+      if (withinWindow) {
+        const { retractLifecycleTags } = await import('@/components/appointments/cancellationTags');
+        await retractLifecycleTags(
+          appointmentId,
+          wasNoShowKind ? 'no-show' : 'cancellation',
+          (reversalRow as any)?.cancellation_reason || null,
+        );
+        await supabase
+          .from('all_appointments')
+          .update({ cancellation_reason: null })
+          .eq('id', appointmentId);
+      }
+    } catch (reversalErr) {
+      console.error('⚠️ Lifecycle tag reversal check failed (non-critical):', reversalErr);
+    }
+  }
+
   // Do Not Call: always fire DND + DO NOT CALL note when explicitly selected.
   if (status === 'Do Not Call') {
     if (oldStatus === status) {
