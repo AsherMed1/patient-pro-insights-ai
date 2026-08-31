@@ -40,6 +40,74 @@ async function ghlJson(res: Response) {
   }
 }
 
+// Post a Slack message to the calendar-updates channel. Always non-blocking.
+async function postSlack(payload: unknown): Promise<void> {
+  const webhook = Deno.env.get('SLACK_CALENDAR_UPDATES_WEBHOOK_URL');
+  if (!webhook) {
+    console.warn('[CREATE-GHL-BLOCK-SLOT] SLACK_CALENDAR_UPDATES_WEBHOOK_URL not configured — skipping Slack message');
+    return;
+  }
+  try {
+    const res = await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    console.log('[CREATE-GHL-BLOCK-SLOT] Slack message sent, status:', res.status);
+  } catch (err) {
+    console.error('[CREATE-GHL-BLOCK-SLOT] Slack message failed (non-blocking):', err);
+  }
+}
+
+/**
+ * Resolve the GHL user IDs to block individually when a calendar refuses a
+ * calendar-level block (round-robin / service calendars). Prefers the
+ * calendar's own team members; falls back to all users on the location.
+ */
+async function resolveCalendarUserIds(
+  calendarId: string,
+  locationId: string,
+  apiKey: string,
+): Promise<string[]> {
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Version': '2021-04-15',
+    'Accept': 'application/json',
+  };
+
+  try {
+    const calRes = await fetch(
+      `https://services.leadconnectorhq.com/calendars/${calendarId}`,
+      { method: 'GET', headers },
+    );
+    const calData = await ghlJson(calRes);
+    const members = calData?.calendar?.teamMembers || calData?.teamMembers || [];
+    const ids = (Array.isArray(members) ? members : [])
+      .map((m: any) => m?.userId || m?.id)
+      .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0);
+    if (ids.length > 0) return Array.from(new Set(ids));
+    console.warn('[CREATE-GHL-BLOCK-SLOT] No teamMembers on calendar — falling back to location users');
+  } catch (err) {
+    console.error('[CREATE-GHL-BLOCK-SLOT] Calendar detail fetch failed:', err);
+  }
+
+  try {
+    const usersRes = await fetch(
+      `https://services.leadconnectorhq.com/users/?locationId=${locationId}`,
+      { method: 'GET', headers },
+    );
+    const usersData = await ghlJson(usersRes);
+    const users = usersData?.users || [];
+    const ids = (Array.isArray(users) ? users : [])
+      .map((u: any) => u?.id)
+      .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0);
+    return Array.from(new Set(ids));
+  } catch (err) {
+    console.error('[CREATE-GHL-BLOCK-SLOT] Location users fetch failed:', err);
+    return [];
+  }
+}
+
 // Helper to delete GHL block on rollback
 async function deleteGhlBlock(eventId: string, apiKey: string): Promise<void> {
   if (!eventId) {
