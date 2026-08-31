@@ -483,95 +483,203 @@ serve(async (req) => {
       allBlockIds = [ghlAppointmentId].filter(Boolean) as string[];
       ghlSynced = true;
     } else {
-      // Calendar-level block failed. We intentionally do NOT fall back to
-      // per-user (assignedUserId) blocks — reserved blocks are always
-      // calendar-level. Alert Slack so the team can fix the calendar
-      // configuration in GHL, log an audit row, and fail the request so no
-      // local reservation is created for a block GHL rejected.
+      // Calendar-level block failed. The ONLY sanctioned fallback is when GHL
+      // itself refuses because the calendar is not an event calendar
+      // (round-robin / service calendars). In that case we block each team
+      // member individually. Every other error stays a hard failure.
       console.error('[CREATE-GHL-BLOCK-SLOT] Calendar-level block-slots failed:', ghlResponse.status, ghlData);
 
       const ghlErrorDetail = ghlData?.message || ghlData?.error || JSON.stringify(ghlData) || `HTTP ${ghlResponse.status}`;
+      const errorText = Array.isArray(ghlErrorDetail) ? ghlErrorDetail.join(' ') : String(ghlErrorDetail);
+      const isNotEventCalendar =
+        (ghlResponse.status === 400 || ghlResponse.status === 422) &&
+        /not an event calendar/i.test(errorText);
 
-      // Audit trail (non-blocking)
-      try {
-        await supabase.from('security_audit_log').insert({
-          event_type: 'block_creation_failed_calendar_level',
-          user_id: user_id || null,
-          details: {
-            project_name,
-            calendar_id,
-            calendar_name: calendar_name || null,
-            start_time,
-            end_time,
-            title: title || 'Reserved',
-            reason: reason || null,
-            attempted_by: user_name || 'Portal User',
-            ghl_status: ghlResponse.status,
-            ghl_error: ghlErrorDetail,
-            timestamp: new Date().toISOString(),
-          },
-        });
-      } catch (auditErr) {
-        console.error('[CREATE-GHL-BLOCK-SLOT] Audit log failed (non-blocking):', auditErr);
-      }
+      let failureReason = errorText;
+      let fallbackUserIds: string[] = [];
 
-      // Slack alert (non-blocking)
-      const slackWebhook = Deno.env.get('SLACK_CALENDAR_UPDATES_WEBHOOK_URL');
-      if (slackWebhook) {
-        try {
-          const slackMessage = {
-            blocks: [
-              {
-                type: 'header',
-                text: { type: 'plain_text', text: '🚫 Reserved Time Block FAILED (Calendar-Level)', emoji: true },
-              },
-              {
-                type: 'section',
-                fields: [
-                  { type: 'mrkdwn', text: `*Clinic:*\n${project_name}` },
-                  { type: 'mrkdwn', text: `*Calendar:*\n${calendar_name || calendar_id}` },
-                  { type: 'mrkdwn', text: `*Attempted By:*\n${user_name || 'Portal User'}` },
-                  { type: 'mrkdwn', text: `*Window:*\n${start_time} → ${end_time}` },
-                ],
-              },
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: `*GHL Error (${ghlResponse.status}):*\n\`\`\`${String(ghlErrorDetail).slice(0, 800)}\`\`\`` },
-              },
-              {
-                type: 'context',
-                elements: [
-                  {
-                    type: 'mrkdwn',
-                    text: '⚠️ No fallback block was created. The reservation was NOT saved. Check the calendar type/configuration in GHL — round-robin or service calendars may not accept calendar-level blocks.',
-                  },
-                ],
-              },
-            ],
-          };
+      if (isNotEventCalendar) {
+        console.log('[CREATE-GHL-BLOCK-SLOT] Non-event calendar detected — resolving team members for user-level fallback');
+        fallbackUserIds = await resolveCalendarUserIds(
+          calendar_id,
+          project.ghl_location_id,
+          project.ghl_api_key,
+        );
+        console.log('[CREATE-GHL-BLOCK-SLOT] Fallback user IDs:', fallbackUserIds);
 
-          const slackRes = await fetch(slackWebhook, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(slackMessage),
-          });
-          console.log('[CREATE-GHL-BLOCK-SLOT] Slack failure alert sent, status:', slackRes.status);
-        } catch (slackErr) {
-          console.error('[CREATE-GHL-BLOCK-SLOT] Slack alert failed (non-blocking):', slackErr);
+        if (fallbackUserIds.length === 0) {
+          failureReason = `${errorText} — and no team members/location users could be resolved for a user-level fallback.`;
+        } else {
+          const createdIds: string[] = [];
+          let perUserError: string | null = null;
+
+          for (const assignedUserId of fallbackUserIds) {
+            const userRes = await fetch(
+              'https://services.leadconnectorhq.com/calendars/events/block-slots',
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${project.ghl_api_key}`,
+                  'Version': '2021-04-15',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  locationId: project.ghl_location_id,
+                  assignedUserId,
+                  title: title || 'Reserved',
+                  startTime: start_time,
+                  endTime: end_time,
+                }),
+              }
+            );
+            const userData = await ghlJson(userRes);
+            const blockId = userData?.id || userData?.appointmentId || null;
+
+            if (!userRes.ok || !blockId) {
+              perUserError = `User-level block failed for user ${assignedUserId} (HTTP ${userRes.status}): ${userData?.message || userData?.error || JSON.stringify(userData)}`;
+              console.error('[CREATE-GHL-BLOCK-SLOT]', perUserError);
+              break;
+            }
+            createdIds.push(blockId);
+          }
+
+          if (perUserError) {
+            // Partial failure = full failure. Roll back what we created.
+            console.error('[CREATE-GHL-BLOCK-SLOT] Rolling back', createdIds.length, 'partial user-level blocks');
+            for (const id of createdIds) {
+              await deleteGhlBlock(id, project.ghl_api_key);
+            }
+            failureReason = perUserError;
+          } else {
+            allBlockIds = createdIds;
+            ghlAppointmentId = createdIds[0];
+            ghlSynced = true;
+            blockLevel = 'user';
+            teamMembersBlocked = createdIds.length;
+            console.log('[CREATE-GHL-BLOCK-SLOT] User-level fallback succeeded for', teamMembersBlocked, 'team member(s)');
+
+            try {
+              await supabase.from('security_audit_log').insert({
+                event_type: 'block_created_user_level_fallback',
+                user_id: user_id || null,
+                details: {
+                  project_name,
+                  calendar_id,
+                  calendar_name: calendar_name || null,
+                  start_time,
+                  end_time,
+                  title: title || 'Reserved',
+                  reason: reason || null,
+                  attempted_by: user_name || 'Portal User',
+                  ghl_user_ids: createdIds.length === fallbackUserIds.length ? fallbackUserIds : fallbackUserIds.slice(0, createdIds.length),
+                  ghl_block_ids: createdIds,
+                  note: 'Calendar is not an event calendar in GHL — blocked each team member individually.',
+                  timestamp: new Date().toISOString(),
+                },
+              });
+            } catch (auditErr) {
+              console.error('[CREATE-GHL-BLOCK-SLOT] Fallback audit log failed (non-blocking):', auditErr);
+            }
+
+            await postSlack({
+              blocks: [
+                {
+                  type: 'header',
+                  text: { type: 'plain_text', text: 'ℹ️ Reserved Time Block created at USER level', emoji: true },
+                },
+                {
+                  type: 'section',
+                  fields: [
+                    { type: 'mrkdwn', text: `*Clinic:*\n${project_name}` },
+                    { type: 'mrkdwn', text: `*Calendar:*\n${calendar_name || calendar_id}` },
+                    { type: 'mrkdwn', text: `*Reserved By:*\n${user_name || 'Portal User'}` },
+                    { type: 'mrkdwn', text: `*Window:*\n${start_time} → ${end_time}` },
+                  ],
+                },
+                {
+                  type: 'context',
+                  elements: [
+                    {
+                      type: 'mrkdwn',
+                      text: `Blocked ${teamMembersBlocked} team member${teamMembersBlocked === 1 ? '' : 's'} individually — this calendar is round-robin/service type, so GHL rejected a calendar-level block.`,
+                    },
+                  ],
+                },
+              ],
+            });
+          }
         }
-      } else {
-        console.warn('[CREATE-GHL-BLOCK-SLOT] SLACK_CALENDAR_UPDATES_WEBHOOK_URL not configured — skipping failure alert');
       }
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          code: 'CALENDAR_LEVEL_BLOCK_FAILED',
-          error: `GHL rejected the calendar-level block (HTTP ${ghlResponse.status}). The reservation was not saved. The team has been notified in Slack to review this calendar's configuration.`,
-          ghl_error: ghlErrorDetail,
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!ghlSynced) {
+        // Hard failure — no block in GHL, no local reservation. Alert Slack and audit.
+        try {
+          await supabase.from('security_audit_log').insert({
+            event_type: 'block_creation_failed_calendar_level',
+            user_id: user_id || null,
+            details: {
+              project_name,
+              calendar_id,
+              calendar_name: calendar_name || null,
+              start_time,
+              end_time,
+              title: title || 'Reserved',
+              reason: reason || null,
+              attempted_by: user_name || 'Portal User',
+              ghl_status: ghlResponse.status,
+              ghl_error: failureReason,
+              user_level_fallback_attempted: isNotEventCalendar,
+              fallback_user_count: fallbackUserIds.length,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        } catch (auditErr) {
+          console.error('[CREATE-GHL-BLOCK-SLOT] Audit log failed (non-blocking):', auditErr);
+        }
+
+        await postSlack({
+          blocks: [
+            {
+              type: 'header',
+              text: { type: 'plain_text', text: '🚫 Reserved Time Block FAILED', emoji: true },
+            },
+            {
+              type: 'section',
+              fields: [
+                { type: 'mrkdwn', text: `*Clinic:*\n${project_name}` },
+                { type: 'mrkdwn', text: `*Calendar:*\n${calendar_name || calendar_id}` },
+                { type: 'mrkdwn', text: `*Attempted By:*\n${user_name || 'Portal User'}` },
+                { type: 'mrkdwn', text: `*Window:*\n${start_time} → ${end_time}` },
+              ],
+            },
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: `*GHL Error (${ghlResponse.status}):*\n\`\`\`${String(failureReason).slice(0, 800)}\`\`\`` },
+            },
+            {
+              type: 'context',
+              elements: [
+                {
+                  type: 'mrkdwn',
+                  text: isNotEventCalendar
+                    ? '⚠️ Calendar-level block was rejected and the user-level fallback also failed. The reservation was NOT saved.'
+                    : '⚠️ No block was created. The reservation was NOT saved. Check the calendar type/configuration in GHL.',
+                },
+              ],
+            },
+          ],
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: 'CALENDAR_LEVEL_BLOCK_FAILED',
+            error: `GHL rejected the block (HTTP ${ghlResponse.status}). The reservation was not saved. The team has been notified in Slack to review this calendar's configuration.`,
+            ghl_error: failureReason,
+          }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Telemetry: log when a block was successfully created over patient appointments
