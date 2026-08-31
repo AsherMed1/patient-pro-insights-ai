@@ -349,6 +349,30 @@ const ReviewQueue: React.FC = () => {
         console.warn('audit log failed', e);
       }
 
+      // Patient identity edits must be traceable from the record itself, not
+      // only from the admin audit log — a renamed patient is otherwise
+      // impossible to find by their real name.
+      const identityChanges: string[] = [];
+      if ((row.lead_name || '') !== newName) {
+        identityChanges.push(`name "${row.lead_name || '—'}" → "${newName}"`);
+      }
+      if (newDob && (row.dob || '').slice(0, 10) !== newDob) {
+        identityChanges.push(`DOB "${(row.dob || '—').slice(0, 10)}" → "${newDob}"`);
+      }
+      if (identityChanges.length > 0) {
+        try {
+          await supabase.from('appointment_notes').insert({
+            appointment_id: row.id,
+            note_text: `Patient details edited in Review Queue: ${identityChanges.join('; ')} by ${userName || 'Unknown'}`,
+            created_by: 'System',
+            visibility: 'internal',
+          } as any);
+        } catch (e) {
+          console.warn('identity change note failed', e);
+        }
+      }
+
+
       setRows(prev => prev.map(r => r.id === row.id ? {
         ...r,
         lead_name: newName,
