@@ -211,3 +211,71 @@ export async function pushCancellationTags(
 ): Promise<PushLifecycleTagsResult> {
   return pushLifecycleTags({ appointmentId, kind: 'cancellation', reason });
 }
+
+/**
+ * Retracts the lifecycle tags pushed by a cancellation / no-show when that
+ * status is reversed shortly afterwards.
+ *
+ * A cancel that is undone minutes later (mis-click, wrong record) otherwise
+ * leaves the GHL contact permanently tagged `cancelled-portal` /
+ * `do-not-reschedule`, which keeps firing the client's cancellation workflows
+ * for a patient whose appointment is live again.
+ */
+export async function retractLifecycleTags(
+  appointmentId: string,
+  kind: LifecycleEventKind,
+  reason?: string | null,
+): Promise<void> {
+  const cleanReason = reason?.trim() || '';
+  const tags = [
+    TRIGGER_TAG[kind],
+    ...(cleanReason ? [tagForReason(kind, cleanReason)] : allReasonTags(kind)),
+    DO_NOT_RESCHEDULE_TAG,
+  ];
+
+  try {
+    const { data: appointmentData } = await supabase
+      .from('all_appointments')
+      .select('ghl_id, project_name')
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (!appointmentData?.ghl_id) return;
+
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('ghl_api_key')
+      .eq('project_name', appointmentData.project_name)
+      .maybeSingle();
+
+    const { error } = await supabase.functions.invoke('update-ghl-contact-tags', {
+      body: {
+        ghl_contact_id: appointmentData.ghl_id,
+        ghl_api_key: projectData?.ghl_api_key || undefined,
+        tags,
+        action: 'remove',
+        source: `portal ${kind} reversed`,
+      },
+    });
+    if (error) throw error;
+
+    await supabase.from('appointment_notes').insert({
+      appointment_id: appointmentId,
+      note_text: `GHL ${kind} tags retracted after the status was reversed: ${tags.join(', ')}`,
+      created_by: 'System',
+      visibility: 'internal',
+    } as any);
+  } catch (e: any) {
+    console.error('Lifecycle tag retraction failed (non-critical):', e);
+    try {
+      await supabase.from('appointment_notes').insert({
+        appointment_id: appointmentId,
+        note_text: `GHL ${kind} tag retraction FAILED (${tags.join(', ')}): ${e?.message || String(e)}`,
+        created_by: 'System',
+        visibility: 'internal',
+      } as any);
+    } catch {
+      /* noop */
+    }
+  }
+}
