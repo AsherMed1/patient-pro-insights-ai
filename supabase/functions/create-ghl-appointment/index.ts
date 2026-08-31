@@ -473,6 +473,8 @@ serve(async (req) => {
     let ghlAppointmentId: string | null = null;
     let ghlSynced = false;
     let allBlockIds: string[] = [];
+    let blockLevel: 'calendar' | 'user' = 'calendar';
+    let teamMembersBlocked = 0;
 
     // If block-slots with calendarId succeeded (event calendar)
     if (ghlResponse.ok) {
