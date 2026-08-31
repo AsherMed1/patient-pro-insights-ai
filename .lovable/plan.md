@@ -36,11 +36,11 @@ Impact today:
 3. **Delete the abusive note** on Tommy Bady and replace it with an internal audit note recording that an inappropriate clinic-visible note was removed.
 4. **Un-dismiss the 50 records** back to their prior review state so nothing is silently hidden from clinics, then re-triage. Records that were genuinely test/junk can be re-dismissed deliberately; the Confirmed and Pending ones must return to the working queue.
 5. **Review the Aug 3 and Aug 28 actions** by the same account (10 approvals, 26 declines, 14 dismissals, 2 OON marks) and flag anything whose reason does not match the record.
-6. **Add guardrails** so a single account cannot repeat this: rate-limit bulk Review Queue dismissals (e.g. a confirmation step plus a Slack alert past ~10 dismissals in 10 minutes), alert on profile display-name changes, and block clinic-visible free-text notes from users whose account is under review.
+
+Account lockdown is out of scope — access has already been removed. No new guardrails or rate limits in this pass.
 
 ## Technical detail
 
 - Data repairs run as SQL against `all_appointments` and `appointment_notes`, with GHL tag retraction through the existing `update-ghl-contact-tags` function using each project's `ghl_api_key`.
-- Account lockdown touches `auth.users`, `user_roles`, `user_sessions` and `project_user_access`.
-- Guardrails: dismissal throttle and Slack alert in `src/components/admin/ReviewQueue.tsx` plus a new lightweight edge notification; profile-name-change auditing via a trigger on `public.profiles` writing to `security_audit_log`.
 - Everything is logged to `audit_logs` / `security_audit_log` so the remediation itself stays auditable for HIPAA purposes.
+
